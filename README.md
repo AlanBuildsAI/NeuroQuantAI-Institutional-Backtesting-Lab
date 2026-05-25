@@ -1,12 +1,28 @@
 # NeuroQuantAI Institutional Backtesting Lab
 
-A portfolio-oriented quantitative research project focused on building a more realistic backtesting framework for multi-strategy trading research.
+A portfolio-oriented quantitative research project focused on building a disciplined backtesting workflow for trading strategy research.
 
-> Status: early-stage portfolio project. This repository is not financial advice and is not intended for live trading.
+> Status: early-stage portfolio project. This repository uses synthetic data for demonstration. It is not financial advice and is not intended for live trading.
 
 ## Project Goal
 
-Most simple trading backtests are misleading because they ignore costs, slippage, drawdowns, overfitting, and regime changes. This project is intended to explore a more disciplined research workflow for testing strategies before any live deployment.
+Many simple trading backtests are misleading because they ignore costs, slippage, drawdowns, overfitting, and regime changes. This project is intended to explore a more careful research workflow for testing strategies before any live deployment.
+
+## Current Working Example
+
+The repository now includes a minimal reproducible synthetic backtest:
+
+```bash
+pip install -r requirements.txt
+python examples/minimal_backtest.py
+```
+
+The example:
+
+- generates synthetic daily price data
+- runs a basic moving-average crossover strategy
+- calculates a synthetic equity curve
+- reports total return, annualized volatility, Sharpe ratio, and max drawdown
 
 ## Planned Capabilities
 
@@ -28,18 +44,25 @@ This project is designed to show practical skills relevant to data and analytics
 - Data cleaning and validation
 - Experimental design
 - Structured documentation
-- Translating messy market data into decision-ready reports
+- Translating messy data into decision-ready summaries
 
-## Current Status
+## Repository Structure
 
-This repo is currently a lightweight public portfolio placeholder. The next step is to add:
-
-1. A reproducible sample dataset or synthetic dataset
-2. A minimal working backtest example
-3. Performance metric calculations
-4. Example charts or outputs
-5. Clear setup instructions
+```text
+examples/
+└── minimal_backtest.py
+requirements.txt
+README.md
+```
 
 ## Safety / Disclaimer
 
 This project is for educational and portfolio purposes only. It does not provide investment advice, trading signals, or live execution recommendations.
+
+## Next Improvements
+
+- Add transaction cost and slippage assumptions
+- Add walk-forward validation example
+- Add Monte Carlo simulation
+- Add visual charts
+- Add strategy comparison table
