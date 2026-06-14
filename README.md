@@ -1,14 +1,26 @@
 # NeuroQuantAI Institutional Backtesting Lab
 
-A portfolio-oriented quantitative analytics project focused on building a disciplined, reproducible backtesting workflow for strategy research.
+A portfolio-oriented **Python analytics case study** focused on disciplined experiment design, data validation, KPI reporting, and clear communication.
 
 > Synthetic data only. Educational / portfolio project. Not financial advice, not trading signals, and not intended for live deployment.
 
-## Why this project exists
+## Portfolio summary
 
-Many simple trading backtests are misleading because they ignore data quality, costs, slippage, drawdowns, overfitting, and benchmark comparison. This repository demonstrates an analyst-style research workflow: generate controlled synthetic data, validate inputs, test strategy logic, calculate risk-adjusted metrics, and communicate results clearly.
+NeuroQuantAI demonstrates how an analyst turns a messy research question into a reproducible workflow:
 
-The goal is not to prove a profitable strategy. The goal is to show structured analytical thinking and decision-ready reporting.
+```text
+synthetic input data → validation checks → experiment logic → parameter sweep → KPI table → visual summary → interpretation
+```
+
+![Analytics workflow](docs/assets/analytics_workflow.svg)
+
+The purpose is not to claim a winning system. The purpose is to show **analytics discipline**: controlled inputs, assumptions, data quality checks, baseline comparison, metric design, and decision-ready reporting.
+
+## Visual outputs
+
+| Model output vs baseline | Downside gap profile |
+|---|---|
+| ![Synthetic model output vs baseline](docs/assets/equity_curve.svg) | ![Synthetic downside gap profile](docs/assets/drawdown_profile.svg) |
 
 ## Current working example
 
@@ -19,15 +31,23 @@ pip install -r requirements.txt
 python examples/minimal_backtest.py
 ```
 
-The example currently:
+The script now exports:
 
-- generates reproducible synthetic daily price data
-- validates required fields and basic data quality
-- runs moving-average crossover strategy variants
-- applies transaction cost and slippage assumptions
-- compares strategy performance against a buy-and-hold benchmark
-- calculates total return, annualized volatility, Sharpe ratio, Sortino ratio, max drawdown, trade count, active days, and market correlation
-- prints a structured parameter-sweep summary table
+```text
+sample_outputs/parameter_sweep_summary.csv
+docs/assets/equity_curve.svg
+docs/assets/drawdown_profile.svg
+```
+
+## What the script does
+
+- Generates reproducible synthetic daily data using a fixed seed
+- Runs data quality checks before analysis
+- Compares multiple parameter configurations
+- Applies implementation-cost and slippage assumptions
+- Compares output against a baseline curve
+- Calculates KPI-style metrics: total result, baseline result, volatility, Sharpe ratio, Sortino ratio, max downside gap, active days, change count, and baseline correlation
+- Exports a structured CSV summary and chart assets for presentation
 
 ## Example output
 
@@ -39,53 +59,61 @@ Synthetic backtest parameter sweep
            10           30            -18.65                  3.55                      14.30         -0.65          -0.70            -24.67          233           21                0.67
 ```
 
-Negative results are intentionally acceptable in this portfolio project: the point is to show measurement discipline, not to cherry-pick a profitable synthetic outcome.
+Negative results are intentionally acceptable. A credible analytics workflow should measure results honestly instead of selecting only flattering scenarios.
 
-## What this demonstrates for analytics roles
+## Why this is analytics
+
+This project is useful for a data analyst portfolio because it demonstrates:
 
 - Python analytical workflows with pandas and NumPy
-- data validation before analysis
-- metric design and KPI-style summary tables
-- parameter comparison / experiment tracking
-- benchmark comparison
-- risk and performance analytics
-- time-series reasoning
-- clean documentation and reproducible scripts
-- translating raw outputs into decision-ready summaries
+- Data validation before calculation
+- Reproducible synthetic-data experiments
+- Parameter comparison and experiment tracking
+- KPI design and structured summary tables
+- Baseline comparison
+- Visual reporting
+- Clear documentation for non-technical reviewers
+- Translating raw outputs into decision-ready summaries
+
+See: [`docs/analytics_explanation.md`](docs/analytics_explanation.md)
 
 ## Repository structure
 
 ```text
 examples/
-  minimal_backtest.py          # reproducible synthetic backtest + parameter sweep
+  minimal_backtest.py            # reproducible synthetic analytics workflow
 docs/
-  methodology.md               # workflow explanation and limitations
+  analytics_explanation.md       # explains why this belongs in an analytics portfolio
+  methodology.md                 # workflow explanation and limitations
+  assets/
+    analytics_workflow.svg
+    equity_curve.svg
+    drawdown_profile.svg
 sample_outputs/
-  parameter_sweep_summary.csv  # sample expected output table
+  parameter_sweep_summary.csv
 requirements.txt
 README.md
 ```
 
 ## Methodology summary
 
-The current workflow follows a simple research sequence:
-
-1. Generate synthetic close-price data.
+1. Generate synthetic input data.
 2. Validate required fields and basic data quality.
-3. Create moving-average crossover signals.
+3. Create experiment signals.
 4. Shift positions by one period to avoid look-ahead bias.
-5. Apply transaction cost and slippage assumptions.
-6. Calculate equity curve, benchmark curve, drawdown, and risk metrics.
-7. Compare multiple parameter configurations in a structured table.
+5. Apply cost and slippage assumptions.
+6. Calculate output curve, baseline curve, downside profile, and KPI metrics.
+7. Compare multiple configurations in a structured table.
+8. Export CSV and visual assets.
 
 ## Limitations
 
-This repository intentionally avoids live data, brokerage APIs, execution systems, and strategy claims. It uses synthetic data only and should be evaluated as a portfolio example of analytical workflow design rather than investment performance.
+This repository intentionally avoids live data, brokerage APIs, execution systems, and performance claims. It should be evaluated as a portfolio example of analytical workflow design rather than investment performance.
 
-## Planned improvements
+## Next improvements
 
-- Add visual charts for equity curve and drawdown
-- Add CSV export from the script
+- Add a notebook-style walkthrough
+- Add a small dashboard-ready HTML report
+- Add more scenario tests
 - Add walk-forward validation example
-- Add Monte Carlo robustness checks
-- Add a small dashboard-ready output file
+- Add Monte Carlo robustness example
