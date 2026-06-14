@@ -1,68 +1,91 @@
 # NeuroQuantAI Institutional Backtesting Lab
 
-A portfolio-oriented quantitative research project focused on building a disciplined backtesting workflow for trading strategy research.
+A portfolio-oriented quantitative analytics project focused on building a disciplined, reproducible backtesting workflow for strategy research.
 
-> Status: early-stage portfolio project. This repository uses synthetic data for demonstration. It is not financial advice and is not intended for live trading.
+> Synthetic data only. Educational / portfolio project. Not financial advice, not trading signals, and not intended for live deployment.
 
-## Project Goal
+## Why this project exists
 
-Many simple trading backtests are misleading because they ignore costs, slippage, drawdowns, overfitting, and regime changes. This project is intended to explore a more careful research workflow for testing strategies before any live deployment.
+Many simple trading backtests are misleading because they ignore data quality, costs, slippage, drawdowns, overfitting, and benchmark comparison. This repository demonstrates an analyst-style research workflow: generate controlled synthetic data, validate inputs, test strategy logic, calculate risk-adjusted metrics, and communicate results clearly.
 
-## Current Working Example
+The goal is not to prove a profitable strategy. The goal is to show structured analytical thinking and decision-ready reporting.
 
-The repository now includes a minimal reproducible synthetic backtest:
+## Current working example
+
+Run the reproducible synthetic example:
 
 ```bash
 pip install -r requirements.txt
 python examples/minimal_backtest.py
 ```
 
-The example:
+The example currently:
 
-- generates synthetic daily price data
-- runs a basic moving-average crossover strategy
-- calculates a synthetic equity curve
-- reports total return, annualized volatility, Sharpe ratio, and max drawdown
+- generates reproducible synthetic daily price data
+- validates required fields and basic data quality
+- runs moving-average crossover strategy variants
+- applies transaction cost and slippage assumptions
+- compares strategy performance against a buy-and-hold benchmark
+- calculates total return, annualized volatility, Sharpe ratio, Sortino ratio, max drawdown, trade count, active days, and market correlation
+- prints a structured parameter-sweep summary table
 
-## Planned Capabilities
+## Example output
 
-- Multi-strategy backtesting structure
-- Realistic transaction costs and slippage assumptions
-- Walk-forward testing concepts
-- Monte Carlo robustness checks
-- Drawdown and risk metrics
-- Strategy comparison framework
-- Clear research documentation
+```text
+Synthetic backtest parameter sweep
+ short_window  long_window  total_return_pct  benchmark_return_pct  annualized_volatility_pct  sharpe_ratio  sortino_ratio  max_drawdown_pct  active_days  trade_count  market_correlation
+           20           60            -13.31                  3.55                      14.38         -0.42          -0.44            -20.42          235           11                0.67
+            5           20            -15.64                  3.55                      14.71         -0.50          -0.59            -24.00          244           32                0.69
+           10           30            -18.65                  3.55                      14.30         -0.65          -0.70            -24.67          233           21                0.67
+```
 
-## What This Project Demonstrates
+Negative results are intentionally acceptable in this portfolio project: the point is to show measurement discipline, not to cherry-pick a profitable synthetic outcome.
 
-This project is designed to show practical skills relevant to data and analytics roles:
+## What this demonstrates for analytics roles
 
-- Python-based analytical workflows
-- Time-series thinking
-- Risk and performance metrics
-- Data cleaning and validation
-- Experimental design
-- Structured documentation
-- Translating messy data into decision-ready summaries
+- Python analytical workflows with pandas and NumPy
+- data validation before analysis
+- metric design and KPI-style summary tables
+- parameter comparison / experiment tracking
+- benchmark comparison
+- risk and performance analytics
+- time-series reasoning
+- clean documentation and reproducible scripts
+- translating raw outputs into decision-ready summaries
 
-## Repository Structure
+## Repository structure
 
 ```text
 examples/
-└── minimal_backtest.py
+  minimal_backtest.py          # reproducible synthetic backtest + parameter sweep
+docs/
+  methodology.md               # workflow explanation and limitations
+sample_outputs/
+  parameter_sweep_summary.csv  # sample expected output table
 requirements.txt
 README.md
 ```
 
-## Safety / Disclaimer
+## Methodology summary
 
-This project is for educational and portfolio purposes only. It does not provide investment advice, trading signals, or live execution recommendations.
+The current workflow follows a simple research sequence:
 
-## Next Improvements
+1. Generate synthetic close-price data.
+2. Validate required fields and basic data quality.
+3. Create moving-average crossover signals.
+4. Shift positions by one period to avoid look-ahead bias.
+5. Apply transaction cost and slippage assumptions.
+6. Calculate equity curve, benchmark curve, drawdown, and risk metrics.
+7. Compare multiple parameter configurations in a structured table.
 
-- Add transaction cost and slippage assumptions
+## Limitations
+
+This repository intentionally avoids live data, brokerage APIs, execution systems, and strategy claims. It uses synthetic data only and should be evaluated as a portfolio example of analytical workflow design rather than investment performance.
+
+## Planned improvements
+
+- Add visual charts for equity curve and drawdown
+- Add CSV export from the script
 - Add walk-forward validation example
-- Add Monte Carlo simulation
-- Add visual charts
-- Add strategy comparison table
+- Add Monte Carlo robustness checks
+- Add a small dashboard-ready output file
