@@ -1,11 +1,14 @@
 """Tests for train/test split, walk-forward validation, and Monte Carlo."""
 
 import numpy as np
+import pandas as pd
 import pytest
 
 from neuroquant.backtest import BacktestConfig, generate_signals
 from neuroquant.research import (
     monte_carlo_bootstrap,
+    overfit_gap,
+    robustness_score,
     split_train_test,
     walk_forward_validation,
 )
@@ -82,3 +85,27 @@ def test_monte_carlo_is_reproducible(sample_data):
     a = monte_carlo_bootstrap(signals["strategy_return"], n_simulations=100, seed=9)
     b = monte_carlo_bootstrap(signals["strategy_return"], n_simulations=100, seed=9)
     assert np.allclose(a["total_returns"], b["total_returns"])
+
+
+def test_overfit_gap_flags_strong_is_weak_oos():
+    flagged = overfit_gap({"sharpe_ratio": 1.2}, {"sharpe_ratio": -0.5})
+    assert flagged["overfit_flag"] is True
+    assert flagged["gap"] == pytest.approx(1.7)
+    clean = overfit_gap({"sharpe_ratio": 0.4}, {"sharpe_ratio": 0.3})
+    assert clean["overfit_flag"] is False
+
+
+def test_robustness_score_bounds_and_components(sample_data):
+    wf = walk_forward_validation(sample_data, train_size=150, test_size=60)
+    oos = {"sharpe_ratio": 0.5, "max_drawdown": -0.1}
+    cost = pd.DataFrame({"total_return": [0.2, 0.1, 0.05]})
+    score = robustness_score(oos, wf, cost)
+    assert 0.0 <= score["score"] <= 100.0
+    for key in ("oos_sharpe_points", "stability_points", "drawdown_points", "cost_points"):
+        assert key in score
+
+
+def test_robustness_score_handles_missing_walk_forward():
+    oos = {"sharpe_ratio": -0.5, "max_drawdown": -0.4}
+    score = robustness_score(oos, None, None)
+    assert 0.0 <= score["score"] <= 100.0

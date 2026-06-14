@@ -113,6 +113,42 @@ exported to `sample_outputs/feature_sample.csv`.
 
 ---
 
+## Quant v2 capabilities
+
+A more quant-serious research engine layered on top of the lab — all offline,
+honest, and conservative by default. Every v2 feature is additive: the default
+configuration reproduces the original behaviour exactly.
+
+- **Offline real-data CSV support** — bring your own local CSV (or use the
+  bundled **synthetic** sample in [`data/samples/`](data/samples/)). The loader
+  accepts `date`/`timestamp`, `close`, optional `open/high/low/volume`, and an
+  optional `benchmark_close`, with extra data-quality checks (sorted,
+  de-duplicated timestamps; suspicious zero-return and short-series warnings).
+  No data is downloaded at runtime and no network/API is ever called.
+- **Position sizing** ([`sizing.py`](src/neuroquant/sizing.py)) — `fixed_unit`
+  (original 0/1), `fixed_fraction`, `capped_exposure`, and `volatility_target`
+  (trailing-vol targeting). Causal by construction; **no leverage and no
+  shorting by default** (max exposure 1.0).
+- **Risk controls** ([`risk.py`](src/neuroquant/risk.py)) — optional volatility
+  cap and a simple drawdown guard, plus rolling volatility / Sharpe / drawdown
+  diagnostics. Off by default; controls only ever *reduce* exposure.
+- **Structured cost model** ([`costs.py`](src/neuroquant/costs.py)) — explicit
+  **fee + spread + slippage** charged on turnover, with the legacy single-scalar
+  path preserved. Execution profiles pass structured assumptions through.
+- **Gross vs net** — the engine reports gross and net returns, exposure, a cost
+  breakdown, and **cost drag**, so fee impact is explicit.
+- **Benchmark comparison** — when a `benchmark_close` column is present, the lab
+  reports benchmark return and excess-vs-benchmark.
+- **Validation upgrades** — an **overfit flag** (strong in-sample but weak
+  out-of-sample) and a transparent **0–100 robustness score** combining
+  out-of-sample Sharpe, walk-forward stability, drawdown, and cost resilience.
+
+These are research diagnostics on synthetic (or user-supplied) data — **not**
+forecasts, **not** trading advice, with **no** live trading, broker/API
+connections, or performance guarantees.
+
+---
+
 ## Visual overview
 
 | Visual | What it answers |
@@ -179,7 +215,9 @@ frame = load_csv_series("my_series.csv")  # needs a date/timestamp + close colum
 ```
 
 The loader validates sorted, de-duplicated timestamps and a clean, positive
-`close` column. `open`, `high`, `low`, `volume` are kept if present.
+`close` column. `open`, `high`, `low`, `volume` and `benchmark_close` are kept
+if present (a `benchmark_close` column enables benchmark comparison). A bundled,
+fully-synthetic example lives in [`data/samples/`](data/samples/).
 
 ---
 
@@ -260,12 +298,13 @@ Reports in `sample_outputs/`:
 
 - Synthetic data by default; it has no real-world structure and results do not
   generalise to any market.
-- A small set of deliberately simple, explainable signal families; long-or-flat
-  positions only (no shorting, no leverage, no position sizing).
+- A small set of deliberately simple, explainable signal families. Position
+  sizing and risk controls are conservative research options — **no leverage and
+  no shorting by default**.
 - Composite is a transparent score of simple signals — **not** a machine-learning
   model.
-- No live trading, no order routing, and no execution modelling beyond a
-  simplified flat cost / slippage assumption.
+- No live trading, no order routing, and no execution modelling beyond simplified
+  fee / spread / slippage assumptions charged on turnover.
 - Regime labels for *attribution* use full-series volatility quantiles
   (descriptive); the tradeable volatility *filter* uses a trailing threshold.
 - Not investment advice and not production trading infrastructure.

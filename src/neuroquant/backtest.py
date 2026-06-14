@@ -15,12 +15,15 @@ from dataclasses import dataclass
 
 import pandas as pd
 
+from .costs import decompose_costs, resolve_cost_rates
 from .metrics import compute_kpis
+from .risk import apply_drawdown_guard, apply_risk_controls
 from .signals import (
     SIGNAL_FAMILIES,
     build_signal_frame,
     required_warmup,
 )
+from .sizing import SIZING_METHODS, compute_exposure
 from .validation import ValidationError, validate_price_frame, validate_window_config
 
 
@@ -60,6 +63,26 @@ class BacktestConfig:
     vol_filter_window: int = 60
     vol_filter_quantile: float = 0.8
 
+    # --- v2: position sizing -------------------------------------------------
+    # ``fixed_unit`` reproduces the original 0/1 long-or-flat behaviour.
+    sizing_method: str = "fixed_unit"
+    fixed_fraction: float = 1.0
+    target_volatility: float = 0.15
+    vol_lookback: int = 20
+    max_exposure: float = 1.0
+    allow_short: bool = False
+
+    # --- v2: optional risk controls (off by default) ------------------------
+    use_risk_controls: bool = False
+    vol_cap: float = 0.30
+    use_drawdown_guard: bool = False
+    drawdown_guard_level: float = 0.20
+
+    # --- v2: structured costs (None keeps the legacy cost_per_trade path) ----
+    fee: float | None = None
+    spread: float = 0.0
+    slippage: float = 0.0
+
 
 def config_label(config: BacktestConfig) -> str:
     """Short, human-readable label for a configuration."""
@@ -93,22 +116,37 @@ def _validate_config(config: BacktestConfig) -> None:
             raise ValidationError("zscore_window must be positive.")
         if config.zscore_entry <= 0:
             raise ValidationError("zscore_entry must be positive.")
+    if config.sizing_method not in SIZING_METHODS:
+        raise ValidationError(
+            f"Unknown sizing_method '{config.sizing_method}'. "
+            f"Choose one of: {', '.join(SIZING_METHODS)}."
+        )
+    if config.max_exposure <= 0:
+        raise ValidationError("max_exposure must be positive.")
+    if config.sizing_method == "volatility_target" and config.target_volatility <= 0:
+        raise ValidationError("target_volatility must be positive.")
 
 
 def generate_signals(frame: pd.DataFrame, config: BacktestConfig) -> pd.DataFrame:
-    """Build positions and returns for one configuration.
+    """Build exposures and returns for one configuration.
 
     Steps:
-      * build the family's unshifted target position (see
-        :func:`neuroquant.signals.build_signal_frame`),
-      * SHIFT the target by one bar so today's decision uses only data
-        available up to yesterday — this avoids look-ahead bias,
-      * apply a transaction cost whenever the position changes,
-      * compute strategy and baseline returns plus cumulative equity.
+      * build the family's unshifted target position
+        (:func:`neuroquant.signals.build_signal_frame`),
+      * size it into a target *exposure* (:mod:`neuroquant.sizing`) and apply
+        optional risk controls (:mod:`neuroquant.risk`) — all causal,
+      * SHIFT the exposure by one bar so today's decision uses only data
+        available up to yesterday (avoids look-ahead bias),
+      * optionally apply a drawdown guard,
+      * charge structured fee / spread / slippage costs on turnover
+        (:mod:`neuroquant.costs`),
+      * compute gross and net strategy returns, a buy-and-hold baseline, and an
+        optional benchmark (if a ``benchmark_close`` column is present).
 
-    Returns a DataFrame with the family's component columns plus
-    ``position``, ``market_return``, ``strategy_return``, ``baseline_return``,
-    ``cost``, ``strategy_equity`` and ``baseline_equity``.
+    With the default config (``fixed_unit`` sizing, scalar cost, no risk
+    controls, no benchmark) this reproduces the original behaviour exactly; the
+    extra ``exposure`` / ``gross_return`` / ``net_return`` / cost-component /
+    benchmark columns are simply added alongside the originals.
     """
     _validate_config(config)
     validate_price_frame(frame, min_rows=required_warmup(config) + 2)
@@ -120,21 +158,46 @@ def generate_signals(frame: pd.DataFrame, config: BacktestConfig) -> pd.DataFram
         if col != "target_position":
             data[col] = signal_frame[col]
 
-    # Shift by one bar: act only on information from the previous bar.
-    data["position"] = signal_frame["target_position"].shift(1).fillna(0.0)
+    market_return = data["close"].pct_change().fillna(0.0)
+    data["market_return"] = market_return
 
-    data["market_return"] = data["close"].pct_change().fillna(0.0)
-
-    position_change = data["position"].diff().abs().fillna(0.0)
-    data["cost"] = position_change * config.cost_per_trade
-
-    data["strategy_return"] = (
-        data["position"] * data["market_return"] - data["cost"]
+    # Size the raw signal into a target exposure, then apply optional risk
+    # controls — both use trailing data only.
+    raw_exposure = compute_exposure(
+        signal_frame["target_position"], market_return, config
     )
-    data["baseline_return"] = data["market_return"]
+    raw_exposure = apply_risk_controls(raw_exposure, market_return, config)
+
+    # Shift by one bar: act only on information from the previous bar.
+    position = raw_exposure.shift(1).fillna(0.0)
+    if config.use_drawdown_guard:
+        position = apply_drawdown_guard(
+            position, market_return, config.drawdown_guard_level
+        )
+    data["position"] = position
+    data["exposure"] = position
+
+    # Structured costs on turnover (legacy scalar path preserved via costs.py).
+    turnover = position.diff().abs().fillna(0.0)
+    cost_parts = decompose_costs(turnover, resolve_cost_rates(config))
+    data["fee_cost"] = cost_parts["fee_cost"]
+    data["spread_cost"] = cost_parts["spread_cost"]
+    data["slippage_cost"] = cost_parts["slippage_cost"]
+    data["cost"] = cost_parts["total_cost"]
+
+    data["gross_return"] = position * market_return
+    data["strategy_return"] = data["gross_return"] - data["cost"]
+    data["net_return"] = data["strategy_return"]
+    data["baseline_return"] = market_return
 
     data["strategy_equity"] = (1.0 + data["strategy_return"]).cumprod()
+    data["gross_equity"] = (1.0 + data["gross_return"]).cumprod()
     data["baseline_equity"] = (1.0 + data["baseline_return"]).cumprod()
+
+    if "benchmark_close" in frame.columns:
+        benchmark_return = frame["benchmark_close"].pct_change().fillna(0.0)
+        data["benchmark_return"] = benchmark_return
+        data["benchmark_equity"] = (1.0 + benchmark_return).cumprod()
 
     return data
 
