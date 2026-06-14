@@ -1,61 +1,115 @@
 # Methodology
 
-This repository is a synthetic-data portfolio example designed to show a disciplined analytics workflow.
-
 ## Research question
 
-Can a simple time-series strategy be evaluated in a reproducible way while accounting for input validation, benchmark comparison, implementation costs, drawdown, and risk-adjusted metrics?
+> Given a controlled synthetic signal series, can a simple, transparent rule
+> (a moving-average crossover) be shown to add value over a buy-and-hold
+> **baseline** — and, just as importantly, can the whole investigation be made
+> **reproducible, validated, and decision-ready**?
 
-## Workflow
+The emphasis is deliberately on the *workflow*, not on "winning". The output is
+evidence and a clear interpretation, whatever the sign of the result.
 
-1. Synthetic data generation
-   - Creates a reproducible close-price series using a fixed random seed.
-   - Uses synthetic data only so the project stays portable and dependency-light.
+## Synthetic data generation
 
-2. Data validation
-   - Confirms required columns exist.
-   - Checks for missing close prices.
-   - Checks that close prices are positive.
+Data is generated, never downloaded. We use a **geometric random walk**:
 
-3. Signal generation
-   - Calculates short and long moving averages.
-   - Creates a long-only signal when the short moving average is above the long moving average.
+```
+value_t = value_{t-1} * exp(drift + volatility * z_t)
+```
 
-4. Bias control
-   - Shifts the signal by one period before calculating returns to avoid using same-day information in the simulated position.
+with `z_t` drawn from a **seeded** NumPy generator. A fixed seed means the
+series — and therefore every chart, CSV, and KPI — is byte-stable across runs.
+We call it a *synthetic signal series* (not an asset price) to keep the project
+firmly in analytics territory and away from any market-prediction framing.
 
-5. Implementation cost assumptions
-   - Applies transaction cost and slippage assumptions in basis points when the position changes.
+## Validation checks
 
-6. Performance measurement
-   - Calculates strategy equity curve and benchmark equity curve.
-   - Calculates total return, benchmark return, annualized volatility, Sharpe ratio, Sortino ratio, max drawdown, active days, trade count, and market correlation.
+Before any analysis runs, inputs must pass `validate_price_frame`:
 
-7. Parameter comparison
-   - Runs a small parameter sweep across multiple moving-average configurations.
-   - Sorts results by Sharpe ratio and total return to create a decision-ready summary table.
+- input is a non-empty `DataFrame`,
+- the required `close` column is present,
+- no missing / `NaN` values,
+- all values strictly positive (a level series cannot be ≤ 0),
+- enough rows to support the requested rolling windows.
 
-## Why negative results are acceptable
+Configuration is guarded by `validate_window_config`: windows must be positive
+integers and the short window must be **strictly less** than the long window,
+otherwise a crossover is meaningless. Every failure raises a `ValidationError`
+with an actionable message.
 
-The current synthetic output does not try to show a winning strategy. That is intentional. A strong analytics project should measure performance honestly instead of cherry-picking a flattering scenario. The value of this repository is the research structure: data checks, assumptions, reproducibility, cost modeling, and clear reporting.
+## Experiment design
+
+For each configuration we:
+
+1. compute fast and slow simple moving averages of `close`,
+2. set a raw signal: in-market when fast > slow, else flat,
+3. **shift the signal by one bar** so a decision uses only prior information —
+   this removes **look-ahead bias**, the most common silent error in this kind
+   of analysis,
+4. apply a simple transaction cost + slippage on every position change,
+5. compute strategy returns and a cumulative equity curve.
+
+## Baseline comparison
+
+Every strategy is measured against a **buy-and-hold baseline** over the same
+window. Without a benchmark, a return number is uninterpretable; with one, we
+can state plainly whether the rule added value.
+
+## Scenario analysis (parameter sweep)
+
+We evaluate a grid of (short, long) window pairs and collect the KPIs into a
+tidy table sorted by Sharpe. This shows whether any apparent edge is **robust
+across settings** or just a lucky single cell — visualised as a Sharpe heatmap.
+
+## Metrics selected and why
+
+| Metric | Why it is included |
+| --- | --- |
+| `total_return` / `baseline_return` | Headline outcome vs the benchmark |
+| `annualized_volatility` | Standardised risk scale |
+| `sharpe_ratio` | Reward per unit of total risk |
+| `sortino_ratio` | Reward per unit of *downside* risk |
+| `max_drawdown` | Worst-case peak-to-trough decline |
+| `active_days` | How often the strategy is exposed |
+| `trade_count` | Activity / turnover (cost driver) |
+| `correlation_to_baseline` | How differentiated the strategy really is |
+| `win_loss_ratio` | Shape of the return distribution |
 
 ## Limitations
 
-- Synthetic data only
-- No live data integration
-- No execution system
-- No production risk engine
-- No recommendation or prediction claim
+- Synthetic data has no real-world structure; results do not generalise to any
+  market and are not meant to.
+- A single random seed is one realisation; broad conclusions would need many
+  seeds (a natural next step).
+- The cost model is intentionally simple (a flat per-change fraction).
+- The strategy family is deliberately minimal to keep focus on the workflow.
 
-## Portfolio relevance
+## Why it avoids live data and prediction claims
 
-This project demonstrates skills relevant to data analyst, business analyst, operations analyst, and analytics-adjacent roles:
+Using only seeded synthetic data keeps the project **reproducible**, removes any
+dependence on third-party APIs or keys, and makes clear that the goal is a
+demonstration of analytics craft — not forecasting markets or giving advice.
 
-- Python analytics
-- pandas and NumPy
-- data validation
-- structured metrics
-- KPI reporting
-- experiment comparison
-- risk and performance analytics
-- clear documentation
+## What a hiring manager should evaluate
+
+- Are inputs validated before they are trusted?
+- Is the experiment fair (benchmark, no look-ahead)?
+- Are the metrics sensible, documented, and honestly reported?
+- Is everything reproducible from a seed?
+- Is the result communicated clearly to a non-technical audience?
+
+## Methodology references / concepts
+
+This project applies widely taught analytics best practices rather than any
+proprietary method:
+
+- **Input validation / data-quality gates** before analysis.
+- **Reproducibility** via fixed random seeds and committed outputs.
+- **Benchmark / baseline comparison** so results are interpretable.
+- **Avoiding look-ahead bias** by lagging signals relative to information.
+- **Scenario / sensitivity analysis** across a parameter grid.
+- **Clear visual and written reporting** for decision-makers.
+
+(No external sources were browsed and no citations are fabricated; the above are
+standard, well-established analytics concepts.)

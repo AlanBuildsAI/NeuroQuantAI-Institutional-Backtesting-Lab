@@ -205,3 +205,14 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# --- Project deliverables: always keep these tracked ---
+# These are committed sample outputs / generated assets for the analytics
+# case study. Negations guard against the broad patterns above.
+!docs/
+!docs/assets/
+!docs/assets/*.png
+!docs/assets/*.svg
+!sample_outputs/
+!sample_outputs/*.csv
+!sample_outputs/dashboard.html

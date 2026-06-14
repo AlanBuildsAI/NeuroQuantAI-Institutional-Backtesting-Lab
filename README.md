@@ -1,119 +1,139 @@
-# NeuroQuantAI Institutional Backtesting Lab
+# NeuroQuant — Python Analytics Case Study
 
-A portfolio-oriented **Python analytics case study** focused on disciplined experiment design, data validation, KPI reporting, and clear communication.
+A small, polished, end-to-end **Python data-analytics case study**. It takes a
+reproducible synthetic time series and walks it through a complete analyst
+workflow: **data validation → experiment design → KPI metric design → scenario
+comparison → visual storytelling → decision-ready reporting.**
 
-> Synthetic data only. Educational / portfolio project. Not financial advice, not trading signals, and not intended for live deployment.
+> **Disclaimer.** This is an **analytics demonstration built on synthetic data
+> only**. It is **not** a trading system, **not** financial advice, and makes
+> **no** market-prediction or performance claims. There are no API keys, no live
+> data, and no brokerage connections anywhere in this repo.
 
-## Portfolio summary
+---
 
-NeuroQuantAI demonstrates how an analyst turns a messy research question into a reproducible workflow:
+## What it is
 
-```text
-synthetic input data → validation checks → experiment logic → parameter sweep → KPI table → visual summary → interpretation
-```
+The project frames a classic "moving-average crossover" rule as an **analytics
+experiment** over a neutral *synthetic signal series*. The interesting part is
+not the rule — it is the **repeatable, auditable workflow** around it: validated
+inputs, a transparent baseline, a parameter sweep across scenarios, a documented
+KPI scorecard, and a self-contained one-page dashboard a non-technical reviewer
+can read in under two minutes.
 
-![Analytics workflow](docs/assets/analytics_workflow.svg)
+![Executive dashboard](docs/assets/dashboard_snapshot.png)
 
-The purpose is not to claim a winning system. The purpose is to show **analytics discipline**: controlled inputs, assumptions, data quality checks, baseline comparison, metric design, and decision-ready reporting.
+![Strategy vs baseline](docs/assets/equity_curve.png)
 
-## Visual outputs
+![Parameter sweep heatmap](docs/assets/sweep_heatmap.png)
 
-| Model output vs baseline | Downside gap profile |
-|---|---|
-| ![Synthetic model output vs baseline](docs/assets/equity_curve.svg) | ![Synthetic downside gap profile](docs/assets/drawdown_profile.svg) |
+---
 
-## Current working example
+## Analytics skills demonstrated
 
-Run the reproducible synthetic example:
+- **Data validation / data quality** — schema, missing values, non-positive
+  values, sufficiency checks, and configuration guards that fail fast with clear
+  messages (`src/neuroquant/validation.py`).
+- **Reproducibility** — every result is seeded; the committed outputs regenerate
+  byte-stable (`src/neuroquant/data.py`).
+- **Experiment design & benchmark comparison** — each scenario is compared to a
+  transparent buy-and-hold **baseline**; signals are shifted by one step to
+  avoid **look-ahead bias** (`src/neuroquant/backtest.py`).
+- **KPI / metric design** — a documented scorecard (return, volatility, Sharpe,
+  Sortino, drawdown, correlation, win/loss, etc.) (`src/neuroquant/metrics.py`).
+- **Scenario analysis** — a parameter sweep across window combinations returns a
+  tidy comparison table.
+- **Visual storytelling** — senior-level matplotlib charts, each stating its
+  analytical question and takeaway (`src/neuroquant/visualization.py`).
+- **Decision-ready reporting** — clean CSV exports plus a self-contained offline
+  HTML dashboard (`src/neuroquant/reporting.py`).
+- **Documentation** — methodology, plain-English walkthrough, portfolio notes.
+
+---
+
+## How to run
+
+Using the bundled virtualenv (`.venv`) and the Makefile:
 
 ```bash
-pip install -r requirements.txt
-python examples/minimal_backtest.py
+make install   # install pandas, numpy, matplotlib, pytest
+make run       # run the full pipeline -> charts, CSVs, HTML dashboard
+make report    # alias for run (regenerates all deliverables)
+make test      # run the pytest suite
+make clean     # remove generated artefacts
 ```
 
-The script now exports:
+Equivalent raw commands (no Make required):
 
-```text
-sample_outputs/parameter_sweep_summary.csv
-docs/assets/equity_curve.svg
-docs/assets/drawdown_profile.svg
+```bash
+.venv/bin/pip install -r requirements.txt
+PYTHONPATH=src .venv/bin/python -m neuroquant.pipeline   # full run
+.venv/bin/python examples/minimal_backtest.py            # tiny demo, no files written
+.venv/bin/python -m pytest tests/ -q                     # tests
 ```
 
-## What the script does
+Optional editable install (then drop the `PYTHONPATH=src` prefix):
 
-- Generates reproducible synthetic daily data using a fixed seed
-- Runs data quality checks before analysis
-- Compares multiple parameter configurations
-- Applies implementation-cost and slippage assumptions
-- Compares output against a baseline curve
-- Calculates KPI-style metrics: total result, baseline result, volatility, Sharpe ratio, Sortino ratio, max downside gap, active days, change count, and baseline correlation
-- Exports a structured CSV summary and chart assets for presentation
-
-## Example output
-
-```text
-Synthetic backtest parameter sweep
- short_window  long_window  total_return_pct  benchmark_return_pct  annualized_volatility_pct  sharpe_ratio  sortino_ratio  max_drawdown_pct  active_days  trade_count  market_correlation
-           20           60            -13.31                  3.55                      14.38         -0.42          -0.44            -20.42          235           11                0.67
-            5           20            -15.64                  3.55                      14.71         -0.50          -0.59            -24.00          244           32                0.69
-           10           30            -18.65                  3.55                      14.30         -0.65          -0.70            -24.67          233           21                0.67
+```bash
+.venv/bin/pip install -e .
 ```
 
-Negative results are intentionally acceptable. A credible analytics workflow should measure results honestly instead of selecting only flattering scenarios.
+---
 
-## Why this is analytics
+## Outputs created
 
-This project is useful for a data analyst portfolio because it demonstrates:
+| Path | What it is |
+| --- | --- |
+| `docs/assets/dashboard_snapshot.{png,svg}` | Executive KPI-card snapshot |
+| `docs/assets/equity_curve.{png,svg}` | Strategy vs baseline cumulative return |
+| `docs/assets/drawdown.{png,svg}` | Drawdown (risk) profile |
+| `docs/assets/scenario_comparison.{png,svg}` | Top configs across return / Sharpe / drawdown |
+| `docs/assets/sweep_heatmap.{png,svg}` | Sharpe across every window combination |
+| `docs/assets/return_distribution.{png,svg}` | Daily return histogram |
+| `sample_outputs/parameter_sweep_summary.csv` | Tidy scenario comparison table |
+| `sample_outputs/equity_curve_sample.csv` | Per-day equity curve of the best config |
+| `sample_outputs/dashboard.html` | Self-contained one-page report (opens offline) |
 
-- Python analytical workflows with pandas and NumPy
-- Data validation before calculation
-- Reproducible synthetic-data experiments
-- Parameter comparison and experiment tracking
-- KPI design and structured summary tables
-- Baseline comparison
-- Visual reporting
-- Clear documentation for non-technical reviewers
-- Translating raw outputs into decision-ready summaries
+---
 
-See: [`docs/analytics_explanation.md`](docs/analytics_explanation.md)
+## What the dashboard means
 
-## Repository structure
+The dashboard answers an analyst's questions, not a trader's:
 
-```text
-examples/
-  minimal_backtest.py            # reproducible synthetic analytics workflow
-docs/
-  analytics_explanation.md       # explains why this belongs in an analytics portfolio
-  methodology.md                 # workflow explanation and limitations
-  assets/
-    analytics_workflow.svg
-    equity_curve.svg
-    drawdown_profile.svg
-sample_outputs/
-  parameter_sweep_summary.csv
-requirements.txt
-README.md
-```
+- **Best config / Top Sharpe** — which scenario looked strongest on a
+  risk-adjusted basis in this controlled experiment.
+- **Strategy vs baseline return** — did the rule add anything over the simple
+  benchmark? (Often it does not — that is fine; see below.)
+- **Max drawdown** — the worst peak-to-trough decline, a plain risk read.
+- **Trades / active days** — how much the strategy actually acted.
+- **Analyst takeaway** — a one-line, decision-ready interpretation.
 
-## Methodology summary
+---
 
-1. Generate synthetic input data.
-2. Validate required fields and basic data quality.
-3. Create experiment signals.
-4. Shift positions by one period to avoid look-ahead bias.
-5. Apply cost and slippage assumptions.
-6. Calculate output curve, baseline curve, downside profile, and KPI metrics.
-7. Compare multiple configurations in a structured table.
-8. Export CSV and visual assets.
+## Why weak or negative results are acceptable here
 
-## Limitations
+This is an **analytics** portfolio piece. The deliverable is a **trustworthy,
+reproducible workflow** — clean data, a fair benchmark, honest metrics, and
+clear reporting — **not** a profitable model. A negative Sharpe on synthetic
+data is a perfectly good result: it shows the pipeline measures and reports
+reality faithfully instead of cherry-picking a flattering number. In real
+business analytics, "the test was inconclusive, and here is the rigorous
+evidence" is frequently the most valuable answer you can deliver.
 
-This repository intentionally avoids live data, brokerage APIs, execution systems, and performance claims. It should be evaluated as a portfolio example of analytical workflow design rather than investment performance.
+---
 
-## Next improvements
+## Why it is relevant to analytics roles
 
-- Add a notebook-style walkthrough
-- Add a small dashboard-ready HTML report
-- Add more scenario tests
-- Add walk-forward validation example
-- Add Monte Carlo robustness example
+The exact same workflow transfers directly to **Data Analyst**, **Business
+Analyst**, **Operations Analyst**, and **Product / Analytics** roles:
+
+- validating messy inputs before trusting them,
+- designing experiments with a fair benchmark,
+- defining and documenting KPIs,
+- comparing scenarios in a tidy table,
+- turning numbers into clear visuals and a one-page decision summary,
+- and documenting the whole thing so others can reproduce it.
+
+Further reading: [`docs/methodology.md`](docs/methodology.md),
+[`docs/analytics_explanation.md`](docs/analytics_explanation.md),
+[`docs/portfolio_relevance.md`](docs/portfolio_relevance.md).
