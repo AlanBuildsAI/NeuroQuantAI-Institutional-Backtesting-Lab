@@ -1,60 +1,118 @@
 """
-Minimal synthetic backtest example.
+NeuroQuantAI - synthetic backtesting workflow.
 
-This script is intentionally simple and uses synthetic price data only.
-It is included to make the repository reproducible as a portfolio project.
-
-Not financial advice. Not intended for live trading.
+Portfolio-oriented example for analytics roles. Uses synthetic data only and is not
+financial advice or a live trading system.
 """
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+from typing import Iterable
+
 import numpy as np
 import pandas as pd
 
+TRADING_DAYS = 252
 
-def generate_synthetic_prices(days: int = 252, seed: int = 42) -> pd.DataFrame:
-    """Generate a synthetic daily price series."""
+
+@dataclass(frozen=True)
+class BacktestConfig:
+    short_window: int
+    long_window: int
+    transaction_cost_bps: float = 5.0
+    slippage_bps: float = 2.0
+
+
+def generate_synthetic_prices(days: int = TRADING_DAYS * 2, seed: int = 42) -> pd.DataFrame:
+    """Generate a reproducible synthetic daily close-price series."""
     rng = np.random.default_rng(seed)
-    daily_returns = rng.normal(loc=0.0004, scale=0.015, size=days)
-    prices = 100 * (1 + pd.Series(daily_returns)).cumprod()
-    return pd.DataFrame({"close": prices})
+    daily_returns = rng.normal(loc=0.00035, scale=0.014, size=days)
+    close = 100 * (1 + pd.Series(daily_returns)).cumprod()
+    return pd.DataFrame({"close": close.round(4)})
 
 
-def run_moving_average_backtest(df: pd.DataFrame, short_window: int = 10, long_window: int = 30) -> pd.DataFrame:
-    """Run a simple moving-average crossover backtest."""
+def validate_price_data(df: pd.DataFrame) -> None:
+    """Run lightweight data quality checks before a backtest."""
+    required_columns = {"close"}
+    missing = required_columns.difference(df.columns)
+    if missing:
+        raise ValueError(f"Missing required columns: {sorted(missing)}")
+    if df["close"].isna().any():
+        raise ValueError("Close price series contains missing values")
+    if (df["close"] <= 0).any():
+        raise ValueError("Close prices must be positive")
+
+
+def run_moving_average_backtest(df: pd.DataFrame, config: BacktestConfig) -> pd.DataFrame:
+    """Run a moving-average crossover backtest with costs and slippage."""
+    if config.short_window >= config.long_window:
+        raise ValueError("short_window must be smaller than long_window")
+
+    validate_price_data(df)
     data = df.copy()
-    data["short_ma"] = data["close"].rolling(short_window).mean()
-    data["long_ma"] = data["close"].rolling(long_window).mean()
+    data["short_ma"] = data["close"].rolling(config.short_window).mean()
+    data["long_ma"] = data["close"].rolling(config.long_window).mean()
     data["signal"] = np.where(data["short_ma"] > data["long_ma"], 1, 0)
     data["position"] = data["signal"].shift(1).fillna(0)
     data["market_return"] = data["close"].pct_change().fillna(0)
-    data["strategy_return"] = data["position"] * data["market_return"]
+
+    trade_count_series = data["position"].diff().abs().fillna(data["position"].abs())
+    round_trip_cost = (config.transaction_cost_bps + config.slippage_bps) / 10_000
+    data["implementation_cost"] = trade_count_series * round_trip_cost
+    data["strategy_return"] = (data["position"] * data["market_return"]) - data["implementation_cost"]
     data["equity_curve"] = (1 + data["strategy_return"]).cumprod()
+    data["benchmark_equity_curve"] = (1 + data["market_return"]).cumprod()
+    data["drawdown"] = data["equity_curve"] / data["equity_curve"].cummax() - 1
     return data
 
 
-def summarize_performance(results: pd.DataFrame) -> dict:
-    """Calculate basic performance metrics."""
+def summarize_performance(results: pd.DataFrame, config: BacktestConfig) -> dict[str, float | int]:
+    """Calculate decision-ready performance and risk metrics."""
     returns = results["strategy_return"]
+    market_returns = results["market_return"]
     total_return = results["equity_curve"].iloc[-1] - 1
-    volatility = returns.std() * np.sqrt(252)
-    sharpe = (returns.mean() * 252) / volatility if volatility != 0 else 0
-    running_max = results["equity_curve"].cummax()
-    drawdown = (results["equity_curve"] - running_max) / running_max
-    max_drawdown = drawdown.min()
+    benchmark_return = results["benchmark_equity_curve"].iloc[-1] - 1
+    volatility = returns.std() * np.sqrt(TRADING_DAYS)
+    sharpe = (returns.mean() * TRADING_DAYS) / volatility if volatility != 0 else 0.0
+    max_drawdown = results["drawdown"].min()
+    active_days = int((results["position"] > 0).sum())
+    trade_count = int(results["position"].diff().abs().fillna(0).sum())
+    downside = returns[returns < 0].std() * np.sqrt(TRADING_DAYS)
+    sortino = (returns.mean() * TRADING_DAYS) / downside if downside and downside != 0 else 0.0
+    correlation = returns.corr(market_returns)
+
     return {
+        "short_window": config.short_window,
+        "long_window": config.long_window,
         "total_return_pct": round(total_return * 100, 2),
+        "benchmark_return_pct": round(benchmark_return * 100, 2),
         "annualized_volatility_pct": round(volatility * 100, 2),
         "sharpe_ratio": round(float(sharpe), 2),
+        "sortino_ratio": round(float(sortino), 2),
         "max_drawdown_pct": round(max_drawdown * 100, 2),
+        "active_days": active_days,
+        "trade_count": trade_count,
+        "market_correlation": round(float(correlation), 2) if not pd.isna(correlation) else 0.0,
     }
+
+
+def run_parameter_sweep(price_data: pd.DataFrame, configs: Iterable[BacktestConfig]) -> pd.DataFrame:
+    """Compare multiple strategy configurations in a structured summary table."""
+    rows = []
+    for config in configs:
+        results = run_moving_average_backtest(price_data, config)
+        rows.append(summarize_performance(results, config))
+    return pd.DataFrame(rows).sort_values(["sharpe_ratio", "total_return_pct"], ascending=False)
 
 
 if __name__ == "__main__":
     prices = generate_synthetic_prices()
-    results = run_moving_average_backtest(prices)
-    summary = summarize_performance(results)
-    print("Synthetic backtest summary")
-    for metric, value in summary.items():
-        print(f"{metric}: {value}")
+    sweep_configs = [
+        BacktestConfig(short_window=5, long_window=20),
+        BacktestConfig(short_window=10, long_window=30),
+        BacktestConfig(short_window=20, long_window=60),
+    ]
+    summary_table = run_parameter_sweep(prices, sweep_configs)
+    print("Synthetic backtest parameter sweep")
+    print(summary_table.to_string(index=False))
