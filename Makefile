@@ -26,6 +26,6 @@ test:
 	$(PYTHON) -m pytest tests/ -q
 
 clean:
-	rm -rf .pytest_cache **/__pycache__ src/**/__pycache__
+	rm -rf .pytest_cache **/__pycache__ src/**/__pycache__ site
 	rm -f sample_outputs/*.csv sample_outputs/dashboard.html
 	rm -f docs/assets/*.svg docs/assets/*.png

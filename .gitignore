@@ -209,6 +209,9 @@ __marimo__/
 # Local agent / editor working directories
 .claude/
 
+# GitHub Pages local build output
+site/
+
 # --- Project deliverables: always keep these tracked ---
 # These are committed sample outputs / generated assets for the analytics
 # case study. Negations guard against the broad patterns above.

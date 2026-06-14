@@ -27,8 +27,6 @@ def test_split_train_test_rejects_bad_fraction(sample_data):
 def test_walk_forward_returns_expected_columns(sample_data):
     wf = walk_forward_validation(
         sample_data,
-        short_windows=[10, 20],
-        long_windows=[40, 60],
         train_size=150,
         test_size=60,
     )
@@ -37,8 +35,8 @@ def test_walk_forward_returns_expected_columns(sample_data):
         "train_start",
         "train_end",
         "test_end",
-        "short_window",
-        "long_window",
+        "signal_family",
+        "label",
         "train_sharpe",
         "test_sharpe",
         "test_total_return",
@@ -55,8 +53,6 @@ def test_walk_forward_requires_enough_rows(sample_data):
     with pytest.raises(ValueError, match="walk-forward"):
         walk_forward_validation(
             sample_data,
-            short_windows=[10],
-            long_windows=[40],
             train_size=250,
             test_size=125,  # 375 > 300-row sample
         )

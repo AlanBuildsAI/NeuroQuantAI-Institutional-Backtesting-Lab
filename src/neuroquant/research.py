@@ -20,7 +20,12 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-from .backtest import BacktestConfig, generate_signals, run_parameter_sweep
+from .backtest import (
+    build_candidate_configs,
+    config_from_row,
+    generate_signals,
+    run_config_sweep,
+)
 from .metrics import compute_kpis
 
 
@@ -72,19 +77,18 @@ def _kpis_on_slice(signals: pd.DataFrame, start: int) -> dict:
 
 def walk_forward_validation(
     frame: pd.DataFrame,
-    short_windows: list[int],
-    long_windows: list[int],
+    configs: list | None = None,
     train_size: int = 250,
     test_size: int = 125,
     cost_per_trade: float = 0.001,
 ) -> pd.DataFrame:
-    """Run rolling walk-forward validation and return a tidy fold summary.
+    """Run rolling walk-forward validation across candidate signal families.
 
     For each fold we:
 
       1. take a training window of ``train_size`` rows,
-      2. select the best configuration on that window by Sharpe ratio
-         (parameters are chosen on training data only),
+      2. select the best configuration on that window by Sharpe ratio — chosen
+         across **all candidate families** on training data only,
       3. evaluate that fixed configuration on the *next* ``test_size`` rows —
          data the selection never saw,
       4. record both the in-sample and out-of-sample headline KPIs.
@@ -92,14 +96,23 @@ def walk_forward_validation(
     The window then steps forward by ``test_size`` and the process repeats.
     This is the standard guard against overfitting a single in-sample sweep.
 
+    Parameters
+    ----------
+    configs:
+        Candidate configurations to choose from on each training window. If
+        ``None``, :func:`neuroquant.backtest.build_candidate_configs` is used.
+
     Returns
     -------
     pandas.DataFrame
         One row per fold with columns: ``fold``, ``train_start``,
-        ``train_end``, ``test_end``, ``short_window``, ``long_window``,
+        ``train_end``, ``test_end``, ``signal_family``, ``label``,
         ``train_sharpe``, ``test_sharpe``, ``test_total_return``,
         ``test_baseline_return``, ``test_max_drawdown``.
     """
+    if configs is None:
+        configs = build_candidate_configs(cost_per_trade=cost_per_trade)
+
     n = len(frame)
     window = train_size + test_size
     if n < window:
@@ -115,19 +128,13 @@ def walk_forward_validation(
         train = frame.iloc[start : start + train_size]
         window_frame = frame.iloc[start : start + window]
 
-        sweep = run_parameter_sweep(
-            train, short_windows, long_windows, cost_per_trade=cost_per_trade
-        )
+        sweep = run_config_sweep(train, configs)
         best = sweep.iloc[0]
-        config = BacktestConfig(
-            short_window=int(best.short_window),
-            long_window=int(best.long_window),
-            cost_per_trade=cost_per_trade,
-        )
+        config = config_from_row(best)
 
         # Evaluate the chosen config out-of-sample. Signals are built on the
-        # full window so the test positions have proper moving-average warm-up,
-        # then scored only on the test slice.
+        # full window so the test positions have proper warm-up, then scored
+        # only on the test slice.
         signals = generate_signals(window_frame, config)
         test_kpis = _kpis_on_slice(signals, train_size)
 
@@ -137,8 +144,8 @@ def walk_forward_validation(
                 "train_start": train.index[0].date().isoformat(),
                 "train_end": train.index[-1].date().isoformat(),
                 "test_end": window_frame.index[-1].date().isoformat(),
-                "short_window": config.short_window,
-                "long_window": config.long_window,
+                "signal_family": config.signal_family,
+                "label": str(best.label),
                 "train_sharpe": float(best.sharpe_ratio),
                 "test_sharpe": test_kpis["sharpe_ratio"],
                 "test_total_return": test_kpis["total_return"],

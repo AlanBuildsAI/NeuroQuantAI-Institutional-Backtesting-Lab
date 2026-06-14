@@ -1,0 +1,6 @@
+scenario,total_return,sharpe_ratio,max_drawdown
+baseline,0.118335,0.40298,-0.116467
+higher_costs,-0.214616,-0.670098,-0.257345
+volatility_shock,0.094603,0.268653,-0.17671
+adverse_drift,-0.231416,-0.768137,-0.26999
+amplified_downside,-0.356553,-1.041904,-0.39506

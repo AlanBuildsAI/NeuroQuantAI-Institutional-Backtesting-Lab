@@ -4,9 +4,13 @@ import pytest
 
 from neuroquant.backtest import (
     BacktestConfig,
+    build_candidate_configs,
+    config_from_row,
     generate_signals,
+    run_config_sweep,
     run_parameter_sweep,
 )
+from neuroquant.signals import SIGNAL_FAMILIES
 from neuroquant.validation import ValidationError
 
 SWEEP_COLUMNS = {"short_window", "long_window", "cost_per_trade"}
@@ -61,3 +65,28 @@ def test_parameter_sweep_sorted_by_sharpe(sample_data):
     )
     sharpes = summary["sharpe_ratio"].tolist()
     assert sharpes == sorted(sharpes, reverse=True)
+
+
+@pytest.mark.parametrize("family", SIGNAL_FAMILIES)
+def test_backtest_runs_each_signal_family(sample_data, family):
+    signals = generate_signals(sample_data, BacktestConfig(signal_family=family))
+    # First position is flat (shifted) and equity is well-formed.
+    assert signals["position"].iloc[0] == 0.0
+    assert signals["strategy_equity"].notna().all()
+
+
+def test_config_sweep_spans_families_and_sorts(sample_data):
+    configs = build_candidate_configs()
+    summary = run_config_sweep(sample_data, configs)
+    assert {"label", "signal_family", "sharpe_ratio"}.issubset(summary.columns)
+    # More than one family is represented in the candidate set.
+    assert summary["signal_family"].nunique() >= 3
+    sharpes = summary["sharpe_ratio"].tolist()
+    assert sharpes == sorted(sharpes, reverse=True)
+
+
+def test_config_from_row_roundtrip(sample_data):
+    configs = build_candidate_configs()
+    summary = run_config_sweep(sample_data, configs)
+    best = config_from_row(summary.iloc[0])
+    assert best.signal_family in SIGNAL_FAMILIES

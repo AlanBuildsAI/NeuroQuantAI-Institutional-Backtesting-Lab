@@ -47,19 +47,25 @@ SIGNED_PERCENT_KEYS = {
 
 
 def export_csvs(
-    summary: pd.DataFrame,
+    scenario_summary: pd.DataFrame,
     signals: pd.DataFrame,
     walk_forward: pd.DataFrame,
+    regime_summary: pd.DataFrame,
+    cost_sensitivity: pd.DataFrame,
+    stress_summary: pd.DataFrame,
+    feature_frame: pd.DataFrame,
     output_dir: Path,
 ) -> dict:
-    """Write the sweep summary, a sample equity curve, and walk-forward folds."""
+    """Write every tidy research table to ``output_dir`` as CSV."""
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    sweep_path = output_dir / "parameter_sweep_summary.csv"
-    summary.round(6).to_csv(sweep_path, index=False)
+    paths: dict[str, Path] = {}
 
-    equity_path = output_dir / "equity_curve_sample.csv"
+    paths["summary_csv"] = output_dir / "parameter_sweep_summary.csv"
+    scenario_summary.round(6).to_csv(paths["summary_csv"], index=False)
+
+    paths["equity_csv"] = output_dir / "equity_curve_sample.csv"
     equity_cols = [
         "close",
         "position",
@@ -68,16 +74,26 @@ def export_csvs(
         "strategy_equity",
         "baseline_equity",
     ]
-    signals[equity_cols].round(6).to_csv(equity_path, index_label="date")
+    signals[equity_cols].round(6).to_csv(
+        paths["equity_csv"], index_label="date"
+    )
 
-    walk_forward_path = output_dir / "walk_forward_summary.csv"
-    walk_forward.round(6).to_csv(walk_forward_path, index=False)
+    paths["walk_forward_csv"] = output_dir / "walk_forward_summary.csv"
+    walk_forward.round(6).to_csv(paths["walk_forward_csv"], index=False)
 
-    return {
-        "summary_csv": sweep_path,
-        "equity_csv": equity_path,
-        "walk_forward_csv": walk_forward_path,
-    }
+    paths["regime_csv"] = output_dir / "regime_summary.csv"
+    regime_summary.round(6).to_csv(paths["regime_csv"], index=False)
+
+    paths["cost_csv"] = output_dir / "cost_sensitivity.csv"
+    cost_sensitivity.round(6).to_csv(paths["cost_csv"], index=False)
+
+    paths["stress_csv"] = output_dir / "stress_test_summary.csv"
+    stress_summary.round(6).to_csv(paths["stress_csv"], index=False)
+
+    paths["feature_csv"] = output_dir / "feature_sample.csv"
+    feature_frame.round(6).to_csv(paths["feature_csv"], index_label="date")
+
+    return paths
 
 
 def _format_kpi(key: str, value) -> str:
@@ -93,68 +109,108 @@ def _format_kpi(key: str, value) -> str:
 def _img_tag(png_path: Path, alt: str) -> str:
     """Return an <img> tag with the PNG embedded as base64 (offline-safe)."""
     encoded = base64.b64encode(Path(png_path).read_bytes()).decode("ascii")
-    return (
-        f'<img alt="{alt}" '
-        f'src="data:image/png;base64,{encoded}" />'
+    return f'<img alt="{alt}" src="data:image/png;base64,{encoded}" />'
+
+
+def _table(headers: list[str], rows: list[list[str]]) -> str:
+    """Render a simple HTML table from string cells."""
+    head = "".join(f"<th>{h}</th>" for h in headers)
+    body = "".join(
+        "<tr>" + "".join(f"<td>{c}</td>" for c in row) + "</tr>" for row in rows
     )
+    return f"<table class='wf'><thead><tr>{head}</tr></thead><tbody>{body}</tbody></table>"
 
 
 def _split_summary_html(in_sample_kpis: dict, out_of_sample_kpis: dict) -> str:
-    """Small in-sample vs out-of-sample comparison block."""
     rows = [
-        ("Sharpe ratio", "sharpe_ratio", "{:.2f}"),
-        ("Total return", "total_return", "{:+.1%}"),
-        ("Max drawdown", "max_drawdown", "{:.1%}"),
+        ["Sharpe ratio",
+         f"{in_sample_kpis['sharpe_ratio']:.2f}",
+         f"{out_of_sample_kpis['sharpe_ratio']:.2f}"],
+        ["Total return",
+         f"{in_sample_kpis['total_return']:+.1%}",
+         f"{out_of_sample_kpis['total_return']:+.1%}"],
+        ["Max drawdown",
+         f"{in_sample_kpis['max_drawdown']:.1%}",
+         f"{out_of_sample_kpis['max_drawdown']:.1%}"],
     ]
-    body = "".join(
-        f"<tr><td>{label}</td>"
-        f"<td>{fmt.format(in_sample_kpis[key])}</td>"
-        f"<td>{fmt.format(out_of_sample_kpis[key])}</td></tr>"
-        for label, key, fmt in rows
-    )
-    return (
-        "<table class='wf'><thead><tr><th>Metric</th>"
-        "<th>In-sample (train)</th><th>Out-of-sample (test)</th>"
-        f"</tr></thead><tbody>{body}</tbody></table>"
-    )
+    return _table(["Metric", "In-sample", "Out-of-sample"], rows)
 
 
 def _walk_forward_html(walk_forward: pd.DataFrame) -> str:
-    """Render the walk-forward fold table."""
-    header = (
-        "<tr><th>Fold</th><th>Train window</th><th>Config</th>"
-        "<th>Train Sharpe</th><th>Test Sharpe</th><th>Test return</th></tr>"
-    )
-    body = "".join(
-        f"<tr><td>{int(r.fold)}</td>"
-        f"<td>{r.train_start} → {r.train_end}</td>"
-        f"<td>{int(r.short_window)}/{int(r.long_window)}</td>"
-        f"<td>{r.train_sharpe:.2f}</td>"
-        f"<td>{r.test_sharpe:.2f}</td>"
-        f"<td>{r.test_total_return:+.1%}</td></tr>"
+    rows = [
+        [str(int(r.fold)),
+         f"{r.train_start} → {r.train_end}",
+         str(r.label),
+         f"{r.train_sharpe:.2f}",
+         f"{r.test_sharpe:.2f}",
+         f"{r.test_total_return:+.1%}"]
         for r in walk_forward.itertuples()
+    ]
+    return _table(
+        ["Fold", "Train window", "Selected", "Train Sharpe", "Test Sharpe",
+         "Test return"],
+        rows,
     )
-    return f"<table class='wf'><thead>{header}</thead><tbody>{body}</tbody></table>"
 
 
 def _monte_carlo_html(mc: dict) -> str:
-    """Render the Monte Carlo robustness summary."""
-    return (
-        "<table class='wf'><tbody>"
-        f"<tr><td>Median total return</td><td>{mc['median_return']:+.1%}</td></tr>"
-        f"<tr><td>5th / 95th percentile</td>"
-        f"<td>{mc['p5_return']:+.1%} / {mc['p95_return']:+.1%}</td></tr>"
-        f"<tr><td>Probability of loss</td>"
-        f"<td>{mc['probability_of_loss']:.0%}</td></tr>"
-        f"<tr><td>Median max drawdown</td>"
-        f"<td>{mc['median_max_drawdown']:.1%}</td></tr>"
-        f"<tr><td>Resamples</td><td>{mc['n_simulations']}</td></tr>"
-        "</tbody></table>"
+    rows = [
+        ["Median total return", f"{mc['median_return']:+.1%}"],
+        ["5th / 95th percentile",
+         f"{mc['p5_return']:+.1%} / {mc['p95_return']:+.1%}"],
+        ["Probability of loss", f"{mc['probability_of_loss']:.0%}"],
+        ["Median max drawdown", f"{mc['median_max_drawdown']:.1%}"],
+        ["Resamples", str(mc["n_simulations"])],
+    ]
+    return _table([], rows)
+
+
+def _cost_sensitivity_html(cost: pd.DataFrame) -> str:
+    rows = [
+        [f"{r.cost * 100:.2f}%",
+         f"{r.total_return:+.1%}",
+         f"{r.sharpe_ratio:.2f}",
+         f"{r.max_drawdown:.1%}",
+         str(int(r.trade_count))]
+        for r in cost.itertuples()
+    ]
+    return _table(
+        ["Cost / trade", "Total return", "Sharpe", "Max drawdown", "Trades"],
+        rows,
     )
 
 
+def _regime_html(regime: pd.DataFrame) -> str:
+    rows = []
+    for r in regime.itertuples():
+        sharpe = "n/a" if pd.isna(r.sharpe_ratio) else f"{r.sharpe_ratio:.2f}"
+        rows.append([
+            r.regime.title(),
+            str(int(r.n_days)),
+            f"{r.active_share:.0%}",
+            f"{r.total_return:+.1%}",
+            sharpe,
+            f"{r.max_drawdown:.1%}",
+        ])
+    return _table(
+        ["Regime", "Days", "Active", "Total return", "Sharpe", "Max drawdown"],
+        rows,
+    )
+
+
+def _stress_html(stress: pd.DataFrame) -> str:
+    rows = [
+        [r.scenario.replace("_", " ").title(),
+         f"{r.total_return:+.1%}",
+         f"{r.sharpe_ratio:.2f}",
+         f"{r.max_drawdown:.1%}"]
+        for r in stress.itertuples()
+    ]
+    return _table(["Scenario", "Total return", "Sharpe", "Max drawdown"], rows)
+
+
 def build_html_report(
-    summary: pd.DataFrame,
+    scenario_summary: pd.DataFrame,
     best_kpis: dict,
     chart_paths: dict,
     output_dir: Path,
@@ -162,19 +218,20 @@ def build_html_report(
     out_of_sample_kpis: dict,
     walk_forward: pd.DataFrame,
     monte_carlo: dict,
+    regime_summary: pd.DataFrame,
+    cost_sensitivity: pd.DataFrame,
+    stress_summary: pd.DataFrame,
     best_config,
 ) -> Path:
-    """Build the self-contained one-page dashboard.html research report.
-
-    ``best_config`` is the configuration selected in-sample; every "selected
-    configuration" figure references it (not the full-series sweep winner) so
-    labels and numbers stay consistent.
-    """
+    """Build the self-contained one-page dashboard.html research report."""
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    best_label = f"{best_config.short_window} / {best_config.long_window}"
+    from .backtest import config_label
+
+    best_label = config_label(best_config)
     in_sample_sharpe = in_sample_kpis["sharpe_ratio"]
+    oos_sharpe = out_of_sample_kpis["sharpe_ratio"]
 
     cards_html = "".join(
         f'<div class="card"><div class="card-label">{KPI_LABELS[k]}</div>'
@@ -189,20 +246,20 @@ def build_html_report(
         for name, p in chart_paths.items()
     )
 
-    oos_sharpe = out_of_sample_kpis["sharpe_ratio"]
     held = (
         float((walk_forward["test_sharpe"] > 0).mean())
         if not walk_forward.empty
         else 0.0
     )
     takeaway = (
-        f"The {best_label}-window configuration was selected on the in-sample "
-        f"period and then evaluated on unseen out-of-sample data "
-        f"(out-of-sample Sharpe {oos_sharpe:.2f}). Across walk-forward folds, "
-        f"{held:.0%} kept a positive out-of-sample Sharpe, and the Monte Carlo "
-        f"resampling shows an estimated {monte_carlo['probability_of_loss']:.0%} "
-        f"probability of a losing path. The deliverable is this evidence trail "
-        f"— validation, baseline comparison, out-of-sample testing, and "
+        f"The candidate '{best_label}' was selected in-sample (across "
+        f"{len(scenario_summary)} configurations spanning four signal families) "
+        f"and then evaluated out-of-sample (Sharpe {oos_sharpe:.2f}). Across "
+        f"walk-forward folds, {held:.0%} kept a positive out-of-sample Sharpe; "
+        f"Monte Carlo resampling implies a ~{monte_carlo['probability_of_loss']:.0%} "
+        f"chance of a losing path. The deliverable is this evidence trail — "
+        f"feature engineering, baseline comparison, out-of-sample and "
+        f"walk-forward testing, regime attribution, cost sensitivity and "
         f"robustness — not the headline number itself."
     )
 
@@ -218,9 +275,7 @@ def build_html_report(
     font-family: -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
     margin: 0; background: #f6f8fa; color: #1f2328;
   }}
-  header {{
-    background: #0d1f3c; color: #fff; padding: 28px 32px;
-  }}
+  header {{ background: #0d1f3c; color: #fff; padding: 28px 32px; }}
   header h1 {{ margin: 0 0 6px; font-size: 22px; }}
   header p {{ margin: 0; color: #9bb4d8; font-size: 14px; }}
   main {{ max-width: 1040px; margin: 0 auto; padding: 24px 20px 48px; }}
@@ -228,7 +283,7 @@ def build_html_report(
     background: #fff8e6; border: 1px solid #f0d58c; border-radius: 8px;
     padding: 12px 16px; font-size: 13px; color: #6b5a1a; margin: 20px 0;
   }}
-  h2 {{ font-size: 16px; margin: 28px 0 12px; }}
+  h2 {{ font-size: 16px; margin: 30px 0 12px; }}
   .cards {{
     display: grid; grid-template-columns: repeat(auto-fit, minmax(165px, 1fr));
     gap: 12px;
@@ -263,15 +318,14 @@ def build_html_report(
   figure img {{ width: 100%; height: auto; display: block; }}
   figcaption {{ font-size: 12px; color: #57606a; margin-top: 8px;
     text-align: center; }}
-  footer {{ text-align: center; color: #8b949e; font-size: 12px;
-    padding: 20px; }}
+  footer {{ text-align: center; color: #8b949e; font-size: 12px; padding: 20px; }}
 </style>
 </head>
 <body>
 <header>
   <h1>NeuroQuantAI — Synthetic Quant Research &amp; Analytics Lab</h1>
-  <p>Reproducible research workflow · validation → in/out-of-sample testing →
-     walk-forward → robustness → reporting</p>
+  <p>Feature engineering · signal families · in/out-of-sample · walk-forward ·
+     robustness · regime &amp; cost diagnostics</p>
 </header>
 <main>
   <div class="disclaimer">
@@ -282,35 +336,58 @@ def build_html_report(
     guarantee. No brokerage connections and no API keys are used anywhere.
   </div>
 
+  <h2>1 · Executive summary</h2>
   <div class="best">
-    <strong>Selected configuration:</strong> short/long windows
-    <strong>{best_label}</strong> · in-sample Sharpe
-    <strong>{in_sample_sharpe:.2f}</strong> · out-of-sample Sharpe
-    <strong>{oos_sharpe:.2f}</strong> · chosen across
-    <strong>{len(summary)}</strong> scenarios.
+    <strong>Selected candidate:</strong> <strong>{best_label}</strong> ·
+    in-sample Sharpe <strong>{in_sample_sharpe:.2f}</strong> · out-of-sample
+    Sharpe <strong>{oos_sharpe:.2f}</strong> · chosen across
+    <strong>{len(scenario_summary)}</strong> configurations spanning four
+    signal families.
   </div>
 
   <div class="grid2">
     <div class="panel">
-      <h3>In-sample vs out-of-sample</h3>
+      <h3>2 · In-sample vs out-of-sample</h3>
       {_split_summary_html(in_sample_kpis, out_of_sample_kpis)}
     </div>
     <div class="panel">
-      <h3>Monte Carlo robustness</h3>
+      <h3>3 · Monte Carlo robustness</h3>
       {_monte_carlo_html(monte_carlo)}
     </div>
   </div>
 
-  <h2>KPI Scorecard — Selected Configuration (full series)</h2>
-  <div class="cards">{cards_html}</div>
-
-  <h2>Walk-Forward Validation</h2>
+  <h2>4 · Walk-forward validation</h2>
   <div class="panel">{_walk_forward_html(walk_forward)}</div>
 
-  <div class="takeaway"><strong>Analyst takeaway.</strong> {takeaway}</div>
+  <div class="grid2" style="margin-top:18px;">
+    <div class="panel">
+      <h3>5 · Cost sensitivity</h3>
+      {_cost_sensitivity_html(cost_sensitivity)}
+    </div>
+    <div class="panel">
+      <h3>6 · Regime analysis</h3>
+      {_regime_html(regime_summary)}
+    </div>
+  </div>
 
-  <h2>Visual Analysis</h2>
+  <h2>7 · Stress diagnostics</h2>
+  <div class="panel">{_stress_html(stress_summary)}</div>
+
+  <h2>8 · KPI scorecard — selected configuration (full series)</h2>
+  <div class="cards">{cards_html}</div>
+
+  <div class="takeaway"><strong>9 · Analyst takeaway.</strong> {takeaway}</div>
+
+  <h2>10 · Visual analysis</h2>
   {images_html}
+
+  <div class="disclaimer">
+    <strong>Limitations.</strong> Synthetic data by default; a small set of
+    deliberately simple, explainable signals; long-or-flat positions only; a
+    flat per-trade cost/slippage assumption; no live trading, order routing, or
+    real-money execution. Results are honest research diagnostics, including
+    weak or negative ones — not a forecast or trading advice.
+  </div>
 </main>
 <footer>Generated by the NeuroQuantAI research pipeline · synthetic data ·
   reproducible from a fixed seed.</footer>

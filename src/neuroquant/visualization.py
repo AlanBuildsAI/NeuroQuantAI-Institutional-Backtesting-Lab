@@ -144,10 +144,13 @@ def plot_drawdown(signals: pd.DataFrame, assets_dir: Path) -> dict:
 def plot_scenario_comparison(summary: pd.DataFrame, assets_dir: Path) -> dict:
     """Compare the top configurations across three KPIs side by side."""
     top = summary.head(6).copy()
-    labels = [
-        f"{int(r.short_window)}/{int(r.long_window)}"
-        for r in top.itertuples()
-    ]
+    if "label" in top.columns:
+        labels = top["label"].tolist()
+    else:
+        labels = [
+            f"{int(r.short_window)}/{int(r.long_window)}"
+            for r in top.itertuples()
+        ]
     x = np.arange(len(top))
 
     fig, axes = plt.subplots(1, 3, figsize=(11, 4.4))
@@ -169,7 +172,7 @@ def plot_scenario_comparison(summary: pd.DataFrame, assets_dir: Path) -> dict:
         ax.axhline(0, color="#d0d7de", lw=1)
 
     fig.suptitle(
-        "Scenario Comparison: Top Configurations (short/long windows)",
+        "Scenario Comparison: Top Candidate Configurations",
         fontsize=13,
         fontweight="bold",
         y=0.99,
@@ -177,7 +180,7 @@ def plot_scenario_comparison(summary: pd.DataFrame, assets_dir: Path) -> dict:
     fig.text(
         0.5,
         0.90,
-        "Which window pair balances reward (return, Sharpe) against risk "
+        "Which candidate signal balances reward (return, Sharpe) against risk "
         "(drawdown)?",
         ha="center",
         fontsize=9,
@@ -259,9 +262,10 @@ def plot_kpi_dashboard(
     that configuration's full-series KPIs so the label and the numbers always
     describe the same scenario.
     """
-    config_label = f"{best_config.short_window} / {best_config.long_window}"
+    from .backtest import config_label as _config_label
+
     cards = [
-        ("Selected config", config_label, "in-sample pick"),
+        ("Selected config", _config_label(best_config), "in-sample pick"),
         ("Sharpe ratio", f"{best_kpis['sharpe_ratio']:.2f}", "full series"),
         ("Strategy return", f"{best_kpis['total_return'] * 100:+.1f}%", "cumulative"),
         ("Baseline return", f"{best_kpis['baseline_return'] * 100:+.1f}%", "buy & hold"),
@@ -355,28 +359,29 @@ def plot_walk_forward(walk_forward: pd.DataFrame, assets_dir: Path) -> dict:
 
 
 def plot_monte_carlo(mc: dict, assets_dir: Path) -> dict:
-    """Distribution of bootstrapped total returns (robustness analysis)."""
+    """Bootstrapped total-return and drawdown distributions (robustness)."""
     total_returns = np.asarray(mc["total_returns"]) * 100
+    max_drawdowns = np.asarray(mc["max_drawdowns"]) * 100
     p5 = mc["p5_return"] * 100
     median = mc["median_return"] * 100
     p95 = mc["p95_return"] * 100
 
-    fig, ax = plt.subplots(figsize=(8, 4.2))
-    counts, _, _ = ax.hist(
+    fig, (ax_r, ax_d) = plt.subplots(1, 2, figsize=(11, 4.2))
+
+    # --- Left: total-return distribution ---
+    counts, _, _ = ax_r.hist(
         total_returns, bins=40, color=COLOR_STRATEGY, alpha=0.55
     )
-    ax.axvline(0, color="#57606a", lw=1)
-
-    # Headroom above the tallest bar so the percentile labels never touch it.
+    ax_r.axvline(0, color="#57606a", lw=1)
     top = counts.max() * 1.22
-    ax.set_ylim(0, top)
+    ax_r.set_ylim(0, top)
     for value, label, color in (
         (p5, "5th pct", COLOR_NEGATIVE),
         (median, "median", COLOR_POSITIVE),
         (p95, "95th pct", COLOR_POSITIVE),
     ):
-        ax.axvline(value, color=color, ls="--", lw=1.4)
-        ax.annotate(
+        ax_r.axvline(value, color=color, ls="--", lw=1.4)
+        ax_r.annotate(
             f"{label}\n{value:+.1f}%",
             xy=(value, top * 0.99),
             ha="center",
@@ -384,27 +389,146 @@ def plot_monte_carlo(mc: dict, assets_dir: Path) -> dict:
             fontsize=8,
             color=color,
         )
-    _titled(
-        ax,
-        "Monte Carlo Robustness: Bootstrapped Total Return",
-        "How stable is the outcome when the return stream is resampled?",
-    )
-    ax.set_xlabel("Total return (%)")
-    ax.set_ylabel("Frequency")
-
-    # Probability-of-loss callout in the lower-left, away from the labels.
-    ax.annotate(
+    ax_r.set_title("Total return", fontsize=11)
+    ax_r.set_xlabel("Total return (%)")
+    ax_r.set_ylabel("Frequency")
+    ax_r.annotate(
         f"P(loss) ≈ {mc['probability_of_loss'] * 100:.0f}% over "
         f"{mc['n_simulations']} resamples",
-        xy=(0.01, 0.05),
+        xy=(0.01, 0.95),
         xycoords="axes fraction",
         ha="left",
-        va="bottom",
+        va="top",
         fontsize=9,
         color="#57606a",
         bbox=dict(boxstyle="round", fc="#f6f8fa", ec="#d0d7de"),
     )
+
+    # --- Right: max-drawdown distribution ---
+    ax_d.hist(max_drawdowns, bins=40, color=COLOR_NEGATIVE, alpha=0.5)
+    med_dd = mc["median_max_drawdown"] * 100
+    p5_dd = mc["p5_max_drawdown"] * 100
+    ax_d.axvline(med_dd, color=COLOR_NEGATIVE, ls="--", lw=1.4)
+    ax_d.annotate(
+        f"median {med_dd:.1f}%\n5th pct {p5_dd:.1f}%",
+        xy=(0.02, 0.95),
+        xycoords="axes fraction",
+        ha="left",
+        va="top",
+        fontsize=8,
+        color="#57606a",
+        bbox=dict(boxstyle="round", fc="#f6f8fa", ec="#d0d7de"),
+    )
+    ax_d.set_title("Max drawdown", fontsize=11)
+    ax_d.set_xlabel("Max drawdown (%)")
+    ax_d.set_ylabel("Frequency")
+
+    fig.suptitle(
+        "Monte Carlo Robustness: Bootstrapped Outcomes",
+        fontsize=13,
+        fontweight="bold",
+        y=1.0,
+    )
+    fig.text(
+        0.5,
+        0.92,
+        "How stable are return and drawdown when the realised return stream is "
+        "resampled?",
+        ha="center",
+        fontsize=9,
+        style="italic",
+        color="#57606a",
+    )
+    fig.tight_layout(rect=(0, 0, 1, 0.9))
     return _save(fig, assets_dir, "monte_carlo")
+
+
+def plot_regime_heatmap(regime_summary: pd.DataFrame, assets_dir: Path) -> dict:
+    """Heatmap of strategy KPIs across volatility regimes."""
+    metrics = [
+        ("total_return", "Total return %", 100.0),
+        ("sharpe_ratio", "Sharpe", 1.0),
+        ("max_drawdown", "Max drawdown %", 100.0),
+        ("active_share", "Active share %", 100.0),
+    ]
+    regimes = regime_summary["regime"].tolist()
+    raw = np.full((len(metrics), len(regimes)), np.nan)
+    for j, (_, row) in enumerate(regime_summary.iterrows()):
+        for i, (col, _, scale) in enumerate(metrics):
+            raw[i, j] = row[col] * scale
+
+    # Colour each row on its own scale (metrics are not comparable in units).
+    norm = np.zeros_like(raw)
+    for i in range(raw.shape[0]):
+        finite = raw[i][np.isfinite(raw[i])]
+        if finite.size and np.ptp(finite) > 0:
+            norm[i] = (raw[i] - np.nanmin(raw[i])) / (
+                np.nanmax(raw[i]) - np.nanmin(raw[i])
+            )
+        else:
+            norm[i] = 0.5
+
+    fig, ax = plt.subplots(figsize=(8, 4.2))
+    ax.imshow(norm, cmap="RdYlBu", aspect="auto")
+    ax.set_xticks(range(len(regimes)))
+    ax.set_xticklabels([r.title() for r in regimes])
+    ax.set_yticks(range(len(metrics)))
+    ax.set_yticklabels([label for _, label, _ in metrics])
+    ax.set_xlabel("Volatility regime")
+    _titled(
+        ax,
+        "Regime Analysis: Performance by Volatility Regime",
+        "Where does the result come from — calm periods, or turbulent ones?",
+    )
+    ax.grid(False)
+
+    for i in range(raw.shape[0]):
+        for j in range(raw.shape[1]):
+            if np.isfinite(raw[i, j]):
+                ax.text(
+                    j, i, f"{raw[i, j]:.1f}", ha="center", va="center",
+                    fontsize=9, color="#24292f",
+                )
+            else:
+                ax.text(
+                    j, i, "n/a", ha="center", va="center",
+                    fontsize=8, color="#8b949e",
+                )
+    return _save(fig, assets_dir, "regime_heatmap")
+
+
+def plot_cost_sensitivity(cost_table: pd.DataFrame, assets_dir: Path) -> dict:
+    """Total return and Sharpe as transaction costs rise."""
+    costs = cost_table["cost"] * 100  # percent
+    total_return = cost_table["total_return"] * 100
+    sharpe = cost_table["sharpe_ratio"]
+
+    fig, ax = plt.subplots(figsize=(8, 4.2))
+    ax.bar(range(len(costs)), total_return, color=COLOR_STRATEGY, alpha=0.7,
+           label="Total return (%)")
+    ax.set_xticks(range(len(costs)))
+    ax.set_xticklabels([f"{c:.2f}%" for c in costs])
+    ax.set_xlabel("Cost per trade")
+    ax.set_ylabel("Total return (%)")
+    ax.axhline(0, color="#d0d7de", lw=1)
+
+    ax_twin = ax.twinx()
+    ax_twin.plot(range(len(costs)), sharpe, color=COLOR_NEGATIVE, marker="o",
+                 lw=1.8, label="Sharpe ratio")
+    ax_twin.set_ylabel("Sharpe ratio", color=COLOR_NEGATIVE)
+    ax_twin.tick_params(axis="y", labelcolor=COLOR_NEGATIVE)
+    ax_twin.grid(False)
+
+    _titled(
+        ax,
+        "Cost Sensitivity: Net Result vs Transaction Costs",
+        "How quickly do trading costs erode the candidate signal's edge?",
+    )
+    lines1, labels1 = ax.get_legend_handles_labels()
+    lines2, labels2 = ax_twin.get_legend_handles_labels()
+    ax.legend(lines1 + lines2, labels1 + labels2, loc="best", frameon=False,
+              fontsize=9)
+    return _save(fig, assets_dir, "cost_sensitivity")
 
 
 def build_all_charts(
@@ -413,27 +537,40 @@ def build_all_charts(
     best_kpis: dict,
     assets_dir: Path,
     best_config,
+    trend_sweep: pd.DataFrame,
+    scenario_summary: pd.DataFrame,
     walk_forward: pd.DataFrame | None = None,
     monte_carlo: dict | None = None,
+    regime_summary: pd.DataFrame | None = None,
+    cost_sensitivity: pd.DataFrame | None = None,
 ) -> dict:
     """Generate every chart and return a name -> {svg, png} mapping.
 
-    ``walk_forward`` and ``monte_carlo`` are optional; when supplied, the
-    walk-forward and Monte Carlo robustness charts are added to the output.
+    ``trend_sweep`` powers the (trend-family) Sharpe heatmap, while
+    ``scenario_summary`` is the multi-family comparison. The remaining inputs
+    are optional and add their corresponding charts when supplied.
     """
     assets_dir = Path(assets_dir)
     charts = {
         "dashboard_snapshot": plot_kpi_dashboard(
-            summary, best_kpis, assets_dir, best_config
+            scenario_summary, best_kpis, assets_dir, best_config
         ),
         "equity_curve": plot_equity_curve(signals, assets_dir),
         "drawdown": plot_drawdown(signals, assets_dir),
-        "scenario_comparison": plot_scenario_comparison(summary, assets_dir),
-        "sweep_heatmap": plot_sweep_heatmap(summary, assets_dir),
+        "scenario_comparison": plot_scenario_comparison(
+            scenario_summary, assets_dir
+        ),
+        "sweep_heatmap": plot_sweep_heatmap(trend_sweep, assets_dir),
         "return_distribution": plot_return_distribution(signals, assets_dir),
     }
     if walk_forward is not None and not walk_forward.empty:
         charts["walk_forward"] = plot_walk_forward(walk_forward, assets_dir)
     if monte_carlo is not None:
         charts["monte_carlo"] = plot_monte_carlo(monte_carlo, assets_dir)
+    if regime_summary is not None and not regime_summary.empty:
+        charts["regime_heatmap"] = plot_regime_heatmap(regime_summary, assets_dir)
+    if cost_sensitivity is not None and not cost_sensitivity.empty:
+        charts["cost_sensitivity"] = plot_cost_sensitivity(
+            cost_sensitivity, assets_dir
+        )
     return charts

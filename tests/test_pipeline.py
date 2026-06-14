@@ -11,6 +11,8 @@ EXPECTED_ASSETS = [
     "sweep_heatmap.png",
     "walk_forward.png",
     "monte_carlo.png",
+    "regime_heatmap.png",
+    "cost_sensitivity.png",
 ]
 
 EXPECTED_OUTPUTS = [
@@ -18,6 +20,10 @@ EXPECTED_OUTPUTS = [
     "parameter_sweep_summary.csv",
     "equity_curve_sample.csv",
     "walk_forward_summary.csv",
+    "regime_summary.csv",
+    "cost_sensitivity.csv",
+    "stress_test_summary.csv",
+    "feature_sample.csv",
 ]
 
 
@@ -67,3 +73,26 @@ def test_pipeline_reports_in_and_out_of_sample(pipeline_run):
     assert "out_of_sample_kpis" in result
     assert "walk_forward" in result
     assert not result["walk_forward"].empty
+
+
+def test_dashboard_contains_new_sections(pipeline_run):
+    _, _, output_dir = pipeline_run
+    html = (output_dir / "dashboard.html").read_text(encoding="utf-8")
+    for heading in (
+        "Executive summary",
+        "Walk-forward validation",
+        "Monte Carlo robustness",
+        "Cost sensitivity",
+        "Regime analysis",
+        "Stress diagnostics",
+        "KPI scorecard",
+    ):
+        assert heading in html, f"missing dashboard section: {heading}"
+
+
+def test_pipeline_produces_diagnostics(pipeline_run):
+    result, _, _ = pipeline_run
+    assert not result["regime_summary"].empty
+    assert not result["cost_sensitivity"].empty
+    assert not result["stress_summary"].empty
+    assert "feature_frame" in result

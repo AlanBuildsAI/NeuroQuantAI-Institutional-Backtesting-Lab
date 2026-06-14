@@ -2,11 +2,11 @@
 
 [![Tests](https://github.com/AlanBuildsAI/NeuroQuantAI-Institutional-Backtesting-Lab/actions/workflows/tests.yml/badge.svg)](https://github.com/AlanBuildsAI/NeuroQuantAI-Institutional-Backtesting-Lab/actions/workflows/tests.yml)
 
-NeuroQuantAI is a quant-inspired Python research and analytics lab for
-evaluating candidate signals using reproducible data pipelines, validation
-gates, benchmark comparison, transaction-cost assumptions, in/out-of-sample
-testing, walk-forward validation, Monte Carlo robustness checks, KPI
-scorecards, and self-contained visual reporting.
+NeuroQuantAI is a synthetic quant research and analytics lab for evaluating
+candidate signals with feature engineering, multiple signal families,
+in/out-of-sample testing, walk-forward validation, Monte Carlo robustness,
+regime-aware diagnostics, cost-sensitivity and stress analysis, KPI reporting,
+and self-contained dashboarding.
 
 > **Disclaimer.** This is a research and analytics **demonstration**. It runs
 > on **synthetic data by default**; optional local CSV research data can be
@@ -21,12 +21,13 @@ scorecards, and self-contained visual reporting.
 
 A serious, end-to-end demonstration of how credible quant research is done —
 applied to a neutral *synthetic signal series* so the focus stays on
-**methodology, not market calls**. The candidate signal (a moving-average
-crossover) is deliberately simple; the value is the disciplined workflow around
-it: validated inputs, a fair baseline, parameters chosen **in-sample** and
-judged **out-of-sample**, walk-forward folds, Monte Carlo robustness, a
-documented KPI scorecard, and a one-page dashboard a reviewer can read in
-minutes.
+**methodology, not market calls**. The candidate signals are deliberately
+simple and explainable; the value is the disciplined workflow around them:
+engineered features, several signal families compared fairly against a
+baseline, parameters chosen **in-sample** and judged **out-of-sample**,
+walk-forward folds, Monte Carlo robustness, regime attribution, cost
+sensitivity, stress diagnostics, a documented KPI scorecard, and a one-page
+dashboard a reviewer can read in minutes.
 
 "Backtesting" here is used as a **controlled research experiment** for measuring
 and comparing signals under honest assumptions — not as trading advice or a
@@ -43,13 +44,17 @@ data generation / optional CSV load
         ↓
    validation gates
         ↓
-in-sample parameter sweep  →  select candidate configuration
+   feature engineering
+        ↓
+in-sample selection across signal families  →  candidate configuration
         ↓
 train / test split  →  out-of-sample evaluation
         ↓
    walk-forward validation
         ↓
   Monte Carlo robustness
+        ↓
+regime attribution  ·  cost sensitivity  ·  stress tests
         ↓
 KPI scorecard  →  visuals  →  self-contained HTML report
 ```
@@ -60,29 +65,51 @@ scoring on the same data.
 
 ---
 
-## What this project demonstrates
+## Signal families
 
-- **Quant research methodology** — hypothesis → evidence, not curve-fitting.
-- **Reproducible Python pipeline** — seeded synthetic data; outputs regenerate
-  byte-stable from one command.
-- **Validation gates** — schema, missing/`NaN`, non-positive, and sufficiency
-  checks that fail fast with clear messages.
-- **Bias-aware signal evaluation** — signals are shifted by one bar to avoid
-  **look-ahead bias**; parameter selection is isolated from evaluation.
-- **Benchmark comparison** — every configuration is measured against a
-  transparent buy-and-hold **baseline**.
-- **Cost / slippage assumptions** — a simple transaction cost is charged on
-  every position change.
-- **Scenario analysis** — a parameter sweep across window combinations, as a
-  tidy table and a Sharpe heatmap.
-- **Walk-forward testing** — rolling train/test folds to probe stability on
-  unseen data.
-- **Monte Carlo robustness** — bootstrapped return paths describing the spread
-  of outcomes and the probability of a losing path.
-- **KPI reporting** — a documented risk/return scorecard (Sharpe, Sortino,
-  Calmar, information ratio, drawdown, turnover, and more).
-- **Dashboarding** — a self-contained, offline HTML report.
-- **Testing & CI** — a fast `pytest` suite run on every push via GitHub Actions.
+All families are long-or-flat (position in `{0, 1}`), shifted one bar before
+trading to avoid look-ahead bias, and defined in
+[`src/neuroquant/signals.py`](src/neuroquant/signals.py):
+
+- **Trend** — moving-average crossover (long when fast MA > slow MA).
+- **Momentum** — long when trailing momentum over a look-back is positive.
+- **Mean reversion** — long when the price z-score is oversold (below a
+  negative threshold).
+- **Composite** — averages the three signals above into a transparent 0–1 score
+  and goes long when at least half agree. (This is a literal composite of real
+  signals — there is no machine-learning model in this repo.)
+- **Volatility filter** *(optional)* — damps exposure when rolling volatility
+  exceeds a **trailing** (expanding-quantile) threshold, so the filter never
+  uses future data.
+
+The in-sample selection and walk-forward both choose among these families.
+
+---
+
+## Feature engineering
+
+[`src/neuroquant/features.py`](src/neuroquant/features.py) builds small,
+explainable, **causal** features (no forward shifts): one-bar and log returns,
+moving averages and price-to-MA distance, multi-horizon momentum, rolling
+z-scores, rolling volatility, drawdown-from-rolling-high, and volatility
+**regime labels** (low / normal / high / stress). A sample feature frame is
+exported to `sample_outputs/feature_sample.csv`.
+
+---
+
+## Robustness & diagnostics
+
+- **In/out-of-sample split** — selection isolated from evaluation.
+- **Walk-forward validation** — rolling folds re-select across families on each
+  training window and score on the next unseen window.
+- **Monte Carlo robustness** — bootstrapped resamples of the realised return
+  stream describe the spread of total return and drawdown and the probability
+  of a losing path (robustness analysis, not a forecast).
+- **Regime attribution** — performance broken down by volatility regime.
+- **Cost sensitivity** — the selected rule re-run across a ladder of
+  transaction-cost assumptions (0.00%–0.50%).
+- **Stress diagnostics** — labelled synthetic transforms (higher costs,
+  volatility shock, adverse drift, amplified downside).
 
 ---
 
@@ -91,11 +118,13 @@ scoring on the same data.
 | Visual | What it answers |
 | --- | --- |
 | ![Executive dashboard](docs/assets/dashboard_snapshot.png) | **Executive dashboard** — selected configuration, KPI scorecard, and analyst takeaway at a glance. |
-| ![Scenario comparison](docs/assets/scenario_comparison.png) | **Scenario comparison** — top configurations across return, risk-adjusted score, and downside. |
+| ![Scenario comparison](docs/assets/scenario_comparison.png) | **Scenario comparison** — top candidate configurations across return, risk-adjusted score, and downside. |
 | ![Baseline comparison](docs/assets/equity_curve.png) | **Baseline comparison** — does the candidate signal add information versus simply holding the series? |
-| ![Parameter sweep heatmap](docs/assets/sweep_heatmap.png) | **Parameter sweep** — how the outcome changes across the experiment grid (robust, or a lucky cell?). |
+| ![Parameter sweep heatmap](docs/assets/sweep_heatmap.png) | **Parameter sweep** — how the trend-family outcome changes across the window grid. |
 | ![Walk-forward validation](docs/assets/walk_forward.png) | **Walk-forward validation** — does the in-sample choice survive out-of-sample? |
-| ![Monte Carlo robustness](docs/assets/monte_carlo.png) | **Monte Carlo robustness** — how stable is the outcome when returns are resampled? |
+| ![Monte Carlo robustness](docs/assets/monte_carlo.png) | **Monte Carlo robustness** — how stable are return and drawdown when returns are resampled? |
+| ![Regime analysis](docs/assets/regime_heatmap.png) | **Regime analysis** — where does the result come from: calm periods or turbulent ones? |
+| ![Cost sensitivity](docs/assets/cost_sensitivity.png) | **Cost sensitivity** — how quickly do trading costs erode the edge? |
 
 ---
 
@@ -137,12 +166,31 @@ Optional editable install (then drop the `PYTHONPATH=src` prefix):
 .venv/bin/pip install -e .
 ```
 
-Using your own research data (optional, offline only):
+---
+
+## Optional local CSV input
+
+The default pipeline uses synthetic data and needs no files. To run the same
+research over your own **local** historical data (offline; no network, no API):
 
 ```python
 from neuroquant.data import load_csv_series
-frame = load_csv_series("my_series.csv")  # needs date/timestamp + close columns
+frame = load_csv_series("my_series.csv")  # needs a date/timestamp + close column
 ```
+
+The loader validates sorted, de-duplicated timestamps and a clean, positive
+`close` column. `open`, `high`, `low`, `volume` are kept if present.
+
+---
+
+## Live demo (GitHub Pages)
+
+The self-contained dashboard is published as a static page by the
+[`Deploy dashboard to Pages`](.github/workflows/pages.yml) workflow after tests
+pass. The page is a single offline HTML file (no external scripts or CDNs).
+
+- **Demo URL:** `https://AlanBuildsAI.github.io/NeuroQuantAI-Institutional-Backtesting-Lab/`
+  *(enable Pages once: repo Settings → Pages → Source: “GitHub Actions”).*
 
 ---
 
@@ -155,20 +203,26 @@ Charts in `docs/assets/` (PNG + SVG):
 | `dashboard_snapshot` | Executive KPI-card snapshot |
 | `equity_curve` | Strategy vs baseline cumulative return |
 | `drawdown` | Drawdown (risk) profile |
-| `scenario_comparison` | Top configs across return / Sharpe / drawdown |
-| `sweep_heatmap` | Sharpe across every window combination |
+| `scenario_comparison` | Top candidate configs across return / Sharpe / drawdown |
+| `sweep_heatmap` | Sharpe across the trend window grid |
 | `return_distribution` | Daily return histogram |
 | `walk_forward` | In-sample vs out-of-sample Sharpe by fold |
-| `monte_carlo` | Bootstrapped total-return distribution |
+| `monte_carlo` | Bootstrapped return & drawdown distributions |
+| `regime_heatmap` | KPIs by volatility regime |
+| `cost_sensitivity` | Net result vs transaction-cost ladder |
 
 Reports in `sample_outputs/`:
 
 | File | What it is |
 | --- | --- |
 | `dashboard.html` | Self-contained one-page report (opens offline) |
-| `parameter_sweep_summary.csv` | Tidy scenario comparison table |
+| `parameter_sweep_summary.csv` | Multi-family scenario comparison table |
 | `equity_curve_sample.csv` | Per-day equity curve of the selected config |
 | `walk_forward_summary.csv` | Per-fold walk-forward results |
+| `regime_summary.csv` | Performance by volatility regime |
+| `cost_sensitivity.csv` | KPIs across the transaction-cost ladder |
+| `stress_test_summary.csv` | KPIs under stress transforms |
+| `feature_sample.csv` | Engineered feature frame |
 
 ---
 
@@ -176,31 +230,37 @@ Reports in `sample_outputs/`:
 
 - Synthetic data by default; it has no real-world structure and results do not
   generalise to any market.
-- A single, deliberately simple signal family (one moving-average crossover).
+- A small set of deliberately simple, explainable signal families; long-or-flat
+  positions only (no shorting, no leverage, no position sizing).
+- Composite is a transparent score of simple signals — **not** a machine-learning
+  model.
 - No live trading, no order routing, and no execution modelling beyond a
   simplified flat cost / slippage assumption.
+- Regime labels for *attribution* use full-series volatility quantiles
+  (descriptive); the tradeable volatility *filter* uses a trailing threshold.
 - Not investment advice and not production trading infrastructure.
 
 ---
 
-## Future improvements
+## Future work
 
-- Additional signal families and feature engineering.
+- Additional signal families and richer feature engineering.
 - More realistic transaction-cost and slippage modelling.
 - Portfolio-level (multi-series) testing.
-- First-class local CSV research datasets and loaders.
+- First-class bundled local CSV research datasets.
 - Richer report export options.
 
 ---
 
 ## Why this matters across analytics roles
 
-The same workflow — validate inputs, design a fair experiment, separate
-selection from evaluation, test robustness, measure risk as well as return, and
-communicate the evidence — transfers directly to **data analytics**, **business
-analytics**, **operations analytics**, **product analytics**, **healthcare
-operations analytics**, and **quant analytics**. The differentiator is not a
-clever model; it is a trustworthy, reproducible, well-communicated process.
+The same workflow — validate inputs, engineer features, design a fair
+experiment, separate selection from evaluation, test robustness, measure risk
+as well as return, and communicate the evidence — transfers directly to **data
+analytics**, **business analytics**, **operations analytics**, **product
+analytics**, **healthcare operations analytics**, and **quant analytics**. The
+differentiator is not a clever model; it is a trustworthy, reproducible,
+well-communicated process.
 
 Further reading: [`docs/methodology.md`](docs/methodology.md),
 [`docs/analytics_explanation.md`](docs/analytics_explanation.md),

@@ -47,17 +47,41 @@ integers and the short window must be **strictly less** than the long window,
 otherwise a crossover is meaningless. Every failure raises a `ValidationError`
 with an actionable message.
 
+## Feature engineering
+
+`features.py` builds small, **causal** features (no forward shifts): returns,
+moving averages and price-to-MA distance, multi-horizon momentum, rolling
+z-scores, rolling volatility, drawdown-from-rolling-high, and volatility regime
+labels. Because no feature looks ahead, building the feature frame introduces no
+leakage; positions derived from features are additionally lagged one bar.
+
+## Signal families
+
+The lab compares four long-or-flat candidate families (`signals.py`):
+
+- **trend** — fast/slow moving-average crossover,
+- **momentum** — positive trailing momentum,
+- **mean reversion** — long when the z-score is oversold,
+- **composite** — a transparent average of the three signals above, thresholded
+  (a literal composite of simple signals, not a machine-learning model).
+
+An optional **volatility filter** damps exposure when rolling volatility exceeds
+a *trailing* (expanding-quantile) threshold, so the filter itself never uses
+future data.
+
 ## Experiment design
 
 For each configuration we:
 
-1. compute fast and slow simple moving averages of `close`,
-2. set a raw signal: in-market when fast > slow, else flat,
-3. **shift the signal by one bar** so a decision uses only prior information —
+1. build the family's target position from past-only features,
+2. **shift the position by one bar** so a decision uses only prior information —
    this removes **look-ahead bias**, the most common silent error in this kind
    of analysis,
-4. apply a simple transaction cost + slippage on every position change,
-5. compute strategy returns and a cumulative equity curve.
+3. apply a simple transaction cost + slippage on every position change,
+4. compute strategy returns and a cumulative equity curve.
+
+Candidate selection runs across all families on the in-sample period; the
+winner is then judged out-of-sample and in walk-forward folds.
 
 ## Baseline comparison
 
@@ -94,6 +118,20 @@ stream (resampling with replacement) into many alternative equity paths and
 summarise the spread: median, 5th and 95th percentile total return, the
 **probability of a losing path**, and the drawdown distribution. This is a
 descriptive robustness diagnostic, not a forecast.
+
+## Regime, cost, and stress diagnostics
+
+Beyond a single headline number we attribute and stress the selected result:
+
+- **Regime attribution** (`regime.py`) breaks performance down by volatility
+  regime (low / normal / high / stress) so we can see whether the result came
+  from calm or turbulent periods.
+- **Cost sensitivity** (`stress.py`) re-runs the selected rule across a ladder
+  of transaction-cost assumptions; by construction higher costs never improve a
+  net result.
+- **Stress diagnostics** (`stress.py`) apply clearly-labelled synthetic
+  transforms — higher costs, a volatility shock, an adverse drift, and amplified
+  downside — to probe fragility. These are diagnostics, not predictions.
 
 ## Metrics selected and why
 
