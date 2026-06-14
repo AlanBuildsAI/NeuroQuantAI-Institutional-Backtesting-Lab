@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="920" height="320" viewBox="0 0 920 320">
+  <rect width="920" height="320" fill="#ffffff"/>
+  <style>
+    .axis{stroke:#111827;stroke-width:1.5}.grid{stroke:#e5e7eb;stroke-width:1}.title{font:700 20px Arial,sans-serif;fill:#111827}.label{font:13px Arial,sans-serif;fill:#374151}.line{fill:none;stroke:#dc2626;stroke-width:3}.zone{fill:#fee2e2;opacity:.6}
+  </style>
+  <text class="title" x="40" y="35">Synthetic downside gap profile</text>
+  <line class="grid" x1="80" y1="75" x2="860" y2="75"/><line class="grid" x1="80" y1="125" x2="860" y2="125"/><line class="grid" x1="80" y1="175" x2="860" y2="175"/><line class="grid" x1="80" y1="225" x2="860" y2="225"/>
+  <line class="axis" x1="80" y1="260" x2="860" y2="260"/><line class="axis" x1="80" y1="65" x2="80" y2="260"/>
+  <path class="zone" d="M80,75 C160,92 220,110 300,118 C380,130 460,150 540,170 C650,190 740,217 860,226 L860,75 L80,75 Z"/>
+  <path class="line" d="M80,75 C160,92 220,110 300,118 C380,130 460,150 540,170 C650,190 740,217 860,226"/>
+  <text class="label" x="70" y="280">Day 1</text><text class="label" x="815" y="280">Day 504</text><text class="label" x="25" y="80">0%</text><text class="label" x="18" y="130">-5%</text><text class="label" x="12" y="180">-10%</text><text class="label" x="12" y="230">-20%</text><text class="label" x="342" y="305">Synthetic sequence index</text><text class="label" x="108" y="58">Distance from prior peak</text>
+</svg>
