@@ -1,19 +1,22 @@
 """
-NeuroQuantAI - synthetic backtesting workflow.
+NeuroQuantAI - synthetic backtesting analytics workflow.
 
 Portfolio-oriented example for analytics roles. Uses synthetic data only and is not
-financial advice or a live trading system.
+financial advice, trading advice, or a live trading system.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Iterable
 
 import numpy as np
 import pandas as pd
 
 TRADING_DAYS = 252
+OUTPUT_DIR = Path("sample_outputs")
+ASSET_DIR = Path("docs/assets")
 
 
 @dataclass(frozen=True)
@@ -29,11 +32,11 @@ def generate_synthetic_prices(days: int = TRADING_DAYS * 2, seed: int = 42) -> p
     rng = np.random.default_rng(seed)
     daily_returns = rng.normal(loc=0.00035, scale=0.014, size=days)
     close = 100 * (1 + pd.Series(daily_returns)).cumprod()
-    return pd.DataFrame({"close": close.round(4)})
+    return pd.DataFrame({"day": np.arange(1, days + 1), "close": close.round(4)})
 
 
 def validate_price_data(df: pd.DataFrame) -> None:
-    """Run lightweight data quality checks before a backtest."""
+    """Run lightweight data quality checks before analysis."""
     required_columns = {"close"}
     missing = required_columns.difference(df.columns)
     if missing:
@@ -106,7 +109,44 @@ def run_parameter_sweep(price_data: pd.DataFrame, configs: Iterable[BacktestConf
     return pd.DataFrame(rows).sort_values(["sharpe_ratio", "total_return_pct"], ascending=False)
 
 
-if __name__ == "__main__":
+def export_outputs(results: pd.DataFrame, summary_table: pd.DataFrame) -> None:
+    """Export dashboard-ready CSVs and simple chart images."""
+    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    ASSET_DIR.mkdir(parents=True, exist_ok=True)
+
+    summary_table.to_csv(OUTPUT_DIR / "parameter_sweep_summary.csv", index=False)
+    results[["day", "close", "equity_curve", "benchmark_equity_curve", "drawdown"]].to_csv(
+        OUTPUT_DIR / "equity_curve_sample.csv", index=False
+    )
+
+    try:
+        import matplotlib.pyplot as plt
+    except ImportError:
+        print("matplotlib not installed; skipping chart export")
+        return
+
+    plt.figure(figsize=(9, 5))
+    plt.plot(results["day"], results["equity_curve"], label="Strategy")
+    plt.plot(results["day"], results["benchmark_equity_curve"], label="Benchmark")
+    plt.title("Synthetic Strategy vs Benchmark Equity Curve")
+    plt.xlabel("Synthetic trading day")
+    plt.ylabel("Growth of $1")
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig(ASSET_DIR / "equity_curve.svg")
+    plt.close()
+
+    plt.figure(figsize=(9, 4))
+    plt.plot(results["day"], results["drawdown"])
+    plt.title("Strategy Drawdown Profile")
+    plt.xlabel("Synthetic trading day")
+    plt.ylabel("Drawdown")
+    plt.tight_layout()
+    plt.savefig(ASSET_DIR / "drawdown_profile.svg")
+    plt.close()
+
+
+def main() -> None:
     prices = generate_synthetic_prices()
     sweep_configs = [
         BacktestConfig(short_window=5, long_window=20),
@@ -114,5 +154,19 @@ if __name__ == "__main__":
         BacktestConfig(short_window=20, long_window=60),
     ]
     summary_table = run_parameter_sweep(prices, sweep_configs)
+    selected_config = BacktestConfig(short_window=20, long_window=60)
+    selected_results = run_moving_average_backtest(prices, selected_config)
+
+    export_outputs(selected_results, summary_table)
+
     print("Synthetic backtest parameter sweep")
     print(summary_table.to_string(index=False))
+    print("\nSaved outputs:")
+    print(f"- {OUTPUT_DIR / 'parameter_sweep_summary.csv'}")
+    print(f"- {OUTPUT_DIR / 'equity_curve_sample.csv'}")
+    print(f"- {ASSET_DIR / 'equity_curve.svg'}")
+    print(f"- {ASSET_DIR / 'drawdown_profile.svg'}")
+
+
+if __name__ == "__main__":
+    main()
