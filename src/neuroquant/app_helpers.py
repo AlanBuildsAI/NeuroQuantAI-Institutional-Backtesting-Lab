@@ -44,6 +44,118 @@ SCORECARD_METRICS: list[tuple[str, str, str]] = [
 ]
 
 
+# --- Asset & execution assumption profiles ----------------------------------
+#
+# These are *research assumptions only*. No profile connects to a live broker,
+# exchange, API, or market-data feed. Asset profiles nudge synthetic-data
+# defaults and add explanatory context; execution profiles set simulated cost
+# assumptions that genuinely flow into the backtest via the per-trade cost.
+
+# Execution profiles → simulated round-trip cost components (fractions). The
+# effective per-trade cost used by the backtest is fee + spread + slippage.
+# "Custom assumptions" (None) hands control back to the user.
+EXECUTION_PROFILES: dict[str, dict | None] = {
+    "Generic low-cost broker": {
+        "fee": 0.0003,
+        "spread": 0.0001,
+        "slippage": 0.0001,
+        "turnover_warn": 0.50,
+        "note": "Low fees and tight spreads, typical of liquid equity / ETF venues.",
+    },
+    "Generic crypto exchange": {
+        "fee": 0.0010,
+        "spread": 0.0008,
+        "slippage": 0.0006,
+        "turnover_warn": 0.40,
+        "note": "Higher taker fees and wider spreads than a low-cost broker.",
+    },
+    "Generic high-spread venue": {
+        "fee": 0.0015,
+        "spread": 0.0030,
+        "slippage": 0.0015,
+        "turnover_warn": 0.30,
+        "note": "Wide spreads / thin liquidity; costs dominate frequent trading.",
+    },
+    "Custom assumptions": None,
+}
+
+# Asset profiles → synthetic-data defaults and a suggested execution profile.
+# They never imply live data; they only set starting assumptions and context.
+ASSET_PROFILES: dict[str, dict] = {
+    "Generic equity / ETF": {
+        "volatility": 0.012,
+        "drift": 0.0002,
+        "execution": "Generic low-cost broker",
+        "note": "Broad, relatively calm series; low trading costs are typical.",
+    },
+    "Crypto spot": {
+        "volatility": 0.035,
+        "drift": 0.0003,
+        "execution": "Generic crypto exchange",
+        "note": "High volatility; exchange fees and spreads are material.",
+    },
+    "FX / macro series": {
+        "volatility": 0.006,
+        "drift": 0.0,
+        "execution": "Generic low-cost broker",
+        "note": "Lower volatility and near-zero drift; tight spreads on majors.",
+    },
+    "Futures-like series": {
+        "volatility": 0.018,
+        "drift": 0.0001,
+        "execution": "Generic low-cost broker",
+        "note": "Moderate volatility; real costs vary by contract and venue.",
+    },
+    "Custom uploaded series": {
+        "volatility": 0.012,
+        "drift": 0.0002,
+        "execution": "Custom assumptions",
+        "note": "Use Upload CSV; execution assumptions are user-defined.",
+    },
+}
+
+
+def execution_cost(profile_name: str) -> float:
+    """Effective per-trade cost (fee + spread + slippage) for a named profile.
+
+    Raises ``KeyError`` for an unknown profile and ``ValueError`` for the
+    custom profile (which has no preset cost).
+    """
+    profile = EXECUTION_PROFILES[profile_name]
+    if profile is None:
+        raise ValueError(
+            "The custom profile has no preset cost; supply one explicitly."
+        )
+    return round(profile["fee"] + profile["spread"] + profile["slippage"], 6)
+
+
+def resolve_execution(profile_name: str, custom_cost: float = 0.001) -> dict:
+    """Resolve a named execution profile into concrete simulated assumptions.
+
+    Returns a dict with ``cost`` (effective per-trade cost the backtest will
+    use), the ``fee`` / ``spread`` / ``slippage`` breakdown (``None`` for
+    custom), a ``turnover_warn`` threshold, and an ``is_custom`` flag.
+    """
+    profile = EXECUTION_PROFILES.get(profile_name)
+    if profile is None:  # Custom assumptions
+        return {
+            "cost": float(custom_cost),
+            "fee": None,
+            "spread": None,
+            "slippage": None,
+            "turnover_warn": 0.50,
+            "is_custom": True,
+        }
+    return {
+        "cost": execution_cost(profile_name),
+        "fee": profile["fee"],
+        "spread": profile["spread"],
+        "slippage": profile["slippage"],
+        "turnover_warn": profile["turnover_warn"],
+        "is_custom": False,
+    }
+
+
 @dataclass(frozen=True)
 class ResearchParams:
     """User-tunable research settings collected from the UI."""
@@ -212,19 +324,90 @@ def build_takeaway(
     monte_carlo: dict,
     walk_forward: pd.DataFrame | None,
 ) -> str:
-    """A short, honest one-line analyst summary of a research run."""
+    """A short (≤2 sentence), analytical, honest summary of a research run."""
     oos = out_of_sample_kpis["sharpe_ratio"]
     p_loss = monte_carlo["probability_of_loss"]
-    if walk_forward is not None and not walk_forward.empty:
-        held = float((walk_forward["test_sharpe"] > 0).mean())
-        wf = f"{held:.0%} of walk-forward folds kept a positive out-of-sample Sharpe; "
-    else:
-        wf = ""
-    return (
-        f"The '{label}' candidate had an out-of-sample Sharpe of {oos:.2f}. {wf}"
-        f"Monte Carlo resampling implies a ~{p_loss:.0%} chance of a losing path. "
-        f"These are research diagnostics on synthetic data, not a forecast."
+    verdict = (
+        "positive out-of-sample performance"
+        if oos > 0
+        else "weak out-of-sample evidence"
     )
+    return (
+        f"The '{label}' setup shows {verdict} under the current assumptions "
+        f"(out-of-sample Sharpe {oos:.2f}). Robustness depends on the "
+        f"~{p_loss:.0%} Monte Carlo loss probability and cost sensitivity — "
+        f"these are research diagnostics, not a forecast."
+    )
+
+
+def analyst_warnings(result: dict, turnover_warn: float = 0.50) -> list[dict]:
+    """Analyst-style, non-judgemental flags about a research run.
+
+    Returns a list of ``{"level": ..., "text": ...}`` dicts where ``level`` is
+    one of ``"warning"``, ``"info"`` or ``"success"``. The intent is to explain
+    fragilities like an analyst would — never to shame the result.
+    """
+    notes: list[dict] = []
+
+    oos = result["out_of_sample_kpis"]["sharpe_ratio"]
+    if oos <= 0:
+        notes.append({
+            "level": "warning",
+            "text": "Out-of-sample Sharpe is non-positive — weak evidence on "
+                    "unseen data under these assumptions.",
+        })
+    elif oos < 0.5:
+        notes.append({
+            "level": "info",
+            "text": "Out-of-sample Sharpe is modest; treat any edge as tentative.",
+        })
+
+    p_loss = result["monte_carlo"]["probability_of_loss"]
+    if p_loss >= 0.60:
+        notes.append({
+            "level": "warning",
+            "text": f"Monte Carlo shows a high ~{p_loss:.0%} chance of a losing "
+                    "path when returns are resampled.",
+        })
+
+    cost = result["cost_sensitivity"]
+    if not cost.empty:
+        cheapest = float(cost.iloc[0]["total_return"])
+        priciest = float(cost.iloc[-1]["total_return"])
+        if cheapest > 0 and priciest <= 0:
+            notes.append({
+                "level": "warning",
+                "text": "Result is fragile to costs: positive at zero cost but "
+                        "negative at the highest cost level.",
+            })
+
+    turnover = float(result["full_kpis"].get("turnover", 0.0))
+    if turnover > turnover_warn:
+        notes.append({
+            "level": "info",
+            "text": f"Turnover ({turnover:.2f}) exceeds this profile's comfort "
+                    f"threshold ({turnover_warn:.2f}); costs will bite harder.",
+        })
+
+    wf = result["walk_forward"]
+    if wf is not None and not wf.empty:
+        held = float((wf["test_sharpe"] > 0).mean())
+        if held < 0.5:
+            notes.append({
+                "level": "warning",
+                "text": f"Walk-forward stability is poor: only {held:.0%} of folds "
+                        "kept a positive out-of-sample Sharpe.",
+            })
+    elif result.get("walk_forward_message"):
+        notes.append({"level": "info", "text": result["walk_forward_message"]})
+
+    if not notes:
+        notes.append({
+            "level": "success",
+            "text": "No major red flags in these diagnostics under the current "
+                    "assumptions.",
+        })
+    return notes
 
 
 def _format_value(value: float, kind: str) -> str:

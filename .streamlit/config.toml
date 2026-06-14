@@ -1,0 +1,8 @@
+# Calm, on-brand theme for the interactive demo. The blue primary colour
+# recolours the "Run research" button and widget accents away from Streamlit's
+# default red, matching the project's dashboard palette.
+[theme]
+primaryColor = "#1f6feb"
+backgroundColor = "#ffffff"
+secondaryBackgroundColor = "#f6f8fa"
+textColor = "#1f2328"

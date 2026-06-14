@@ -6,11 +6,16 @@ import pandas as pd
 import pytest
 
 from neuroquant.app_helpers import (
+    ASSET_PROFILES,
+    EXECUTION_PROFILES,
     ResearchParams,
+    analyst_warnings,
     drawdown_frame,
     equity_frame,
+    execution_cost,
     load_uploaded_csv,
     make_synthetic,
+    resolve_execution,
     run_research,
     scorecard_frame,
 )
@@ -108,3 +113,84 @@ def test_load_uploaded_csv_rejects_missing_close():
     buffer = io.StringIO("date,price\n2021-01-01,100\n2021-01-02,101\n")
     with pytest.raises(ValueError, match="close"):
         load_uploaded_csv(buffer)
+
+
+# --- Asset & execution profiles --------------------------------------------
+
+def test_execution_cost_orders_by_venue_expense():
+    low = execution_cost("Generic low-cost broker")
+    crypto = execution_cost("Generic crypto exchange")
+    high = execution_cost("Generic high-spread venue")
+    # Costs visibly increase from low-cost broker -> crypto -> high-spread venue.
+    assert low < crypto < high
+    assert low > 0
+
+
+def test_resolve_execution_preset():
+    res = resolve_execution("Generic crypto exchange")
+    assert res["is_custom"] is False
+    assert res["cost"] == pytest.approx(
+        res["fee"] + res["spread"] + res["slippage"]
+    )
+    assert 0.0 < res["turnover_warn"] <= 1.0
+
+
+def test_resolve_execution_custom_uses_user_cost():
+    res = resolve_execution("Custom assumptions", custom_cost=0.0033)
+    assert res["is_custom"] is True
+    assert res["cost"] == pytest.approx(0.0033)
+    assert res["fee"] is None
+
+
+def test_asset_profiles_have_required_fields_and_valid_execution():
+    expected = {
+        "Generic equity / ETF",
+        "Crypto spot",
+        "FX / macro series",
+        "Futures-like series",
+        "Custom uploaded series",
+    }
+    assert expected.issubset(set(ASSET_PROFILES))
+    for name, profile in ASSET_PROFILES.items():
+        assert {"volatility", "drift", "execution", "note"}.issubset(profile)
+        assert profile["execution"] in EXECUTION_PROFILES
+
+
+def test_execution_profile_changes_backtest_cost():
+    """A pricier execution profile must raise the effective cost the run uses."""
+    frame = make_synthetic(n_days=500, seed=42)
+    cheap = resolve_execution("Generic low-cost broker")["cost"]
+    pricey = resolve_execution("Generic high-spread venue")["cost"]
+    r_cheap = run_research(
+        frame, ResearchParams(cost_per_trade=cheap, mc_simulations=100)
+    )
+    r_pricey = run_research(
+        frame, ResearchParams(cost_per_trade=pricey, mc_simulations=100)
+    )
+    assert r_cheap["config"].cost_per_trade < r_pricey["config"].cost_per_trade
+    # Higher costs never help net return for the same series/signal.
+    assert (
+        r_pricey["full_kpis"]["total_return"]
+        <= r_cheap["full_kpis"]["total_return"] + 1e-9
+    )
+
+
+def test_analyst_warnings_structure_and_levels():
+    frame = make_synthetic(n_days=750, seed=42)
+    # Trend is weak on this seed -> expect at least one cautionary note.
+    weak = run_research(frame, ResearchParams(signal_family="trend", mc_simulations=200))
+    notes = analyst_warnings(weak, turnover_warn=0.5)
+    assert isinstance(notes, list) and notes
+    for note in notes:
+        assert set(note) == {"level", "text"}
+        assert note["level"] in {"warning", "info", "success"}
+    assert any(n["level"] == "warning" for n in notes)
+
+
+def test_analyst_warnings_clean_run_returns_notes():
+    frame = make_synthetic(n_days=750, seed=42)
+    strong = run_research(
+        frame, ResearchParams(signal_family="mean_reversion", mc_simulations=200)
+    )
+    notes = analyst_warnings(strong, turnover_warn=0.5)
+    assert isinstance(notes, list) and notes

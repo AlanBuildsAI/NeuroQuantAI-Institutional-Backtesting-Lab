@@ -194,12 +194,17 @@ The project offers two complementary demo layers:
   - **Dashboard URL:** `https://AlanBuildsAI.github.io/NeuroQuantAI-Institutional-Backtesting-Lab/`
     *(enable Pages once: repo Settings → Pages → Source: “GitHub Actions”).*
 
-- **Streamlit — interactive research demo.** [`streamlit_app.py`](streamlit_app.py)
-  lets a visitor generate synthetic data (or upload a local CSV for the session),
-  choose a signal family and parameters, and run the same validation,
-  walk-forward, Monte Carlo, regime, cost-sensitivity and stress diagnostics
-  live. It performs no network calls and never persists uploaded data.
-  - **Interactive demo URL:** coming soon
+- **Streamlit — interactive research lab.** [`streamlit_app.py`](streamlit_app.py)
+  is a configurable research lab. A visitor can choose a **data mode** (synthetic
+  or a local CSV upload for the session), an **asset profile** (equity/ETF, crypto
+  spot, FX/macro, futures-like, or custom), and an **execution-assumption profile**
+  (low-cost broker, crypto exchange, high-spread venue, or custom) that sets
+  simulated fee/spread/slippage assumptions, then pick a **signal family** with
+  **parameter controls** and **validation diagnostics** (walk-forward, Monte Carlo,
+  regime, and **cost/stress assumptions**). Asset and execution profiles model
+  *research assumptions only* — there are no broker/exchange/API connections, no
+  live data, and uploaded data is never persisted.
+  - **Interactive demo URL:** <https://neuroquantai.streamlit.app>
 
 Run the interactive demo locally:
 
