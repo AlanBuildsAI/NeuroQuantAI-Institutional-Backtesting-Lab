@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="920" height="220" viewBox="0 0 920 220">
+  <rect width="920" height="220" fill="#ffffff"/>
+  <style>
+    .box{fill:#f7f9fc;stroke:#27364a;stroke-width:1.5;rx:14;ry:14}
+    .title{font:700 16px Arial, sans-serif;fill:#111827}
+    .text{font:13px Arial, sans-serif;fill:#374151}
+    .arrow{stroke:#6b7280;stroke-width:2;marker-end:url(#arrow)}
+  </style>
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L0,6 L9,3 z" fill="#6b7280"/>
+    </marker>
+  </defs>
+  <rect class="box" x="30" y="55" width="150" height="95"/>
+  <text class="title" x="55" y="85">Synthetic Data</text>
+  <text class="text" x="55" y="112">Controlled input</text>
+  <text class="text" x="55" y="132">Fixed seed</text>
+
+  <line class="arrow" x1="190" y1="103" x2="245" y2="103"/>
+  <rect class="box" x="255" y="55" width="150" height="95"/>
+  <text class="title" x="278" y="85">Validation</text>
+  <text class="text" x="278" y="112">Required fields</text>
+  <text class="text" x="278" y="132">Missing values</text>
+
+  <line class="arrow" x1="415" y1="103" x2="470" y2="103"/>
+  <rect class="box" x="480" y="55" width="150" height="95"/>
+  <text class="title" x="502" y="85">Experiment</text>
+  <text class="text" x="502" y="112">Parameter sweep</text>
+  <text class="text" x="502" y="132">Cost assumptions</text>
+
+  <line class="arrow" x1="640" y1="103" x2="695" y2="103"/>
+  <rect class="box" x="705" y="55" width="170" height="95"/>
+  <text class="title" x="730" y="85">Reporting</text>
+  <text class="text" x="730" y="112">KPIs + charts</text>
+  <text class="text" x="730" y="132">Decision summary</text>
+</svg>
