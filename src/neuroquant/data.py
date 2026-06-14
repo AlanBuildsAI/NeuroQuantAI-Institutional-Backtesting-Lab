@@ -114,6 +114,26 @@ def load_csv_series(
         raise ValueError(f"CSV file not found: {path}")
 
     raw = pd.read_csv(path)
+    return load_csv_frame(raw, date_column=date_column, close_column=close_column)
+
+
+def load_csv_frame(
+    raw: pd.DataFrame,
+    date_column: str | None = None,
+    close_column: str = "close",
+) -> pd.DataFrame:
+    """Validate an already-loaded CSV DataFrame and return a clean series.
+
+    This holds the shared parsing and data-quality logic used by
+    :func:`load_csv_series` (file path) and by in-memory callers such as the
+    Streamlit demo's uploaded-file handler. It never touches disk or the
+    network. See :func:`load_csv_series` for the quality gates enforced.
+    """
+    if not isinstance(raw, pd.DataFrame):
+        raise ValueError("Expected a pandas DataFrame of CSV contents.")
+    if raw.empty:
+        raise ValueError("The CSV contained no rows.")
+
     lowered = {c.lower(): c for c in raw.columns}
 
     if date_column is None:

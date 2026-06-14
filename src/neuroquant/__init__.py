@@ -13,7 +13,7 @@ not financial advice, not an investment recommendation, and makes no
 performance guarantees.
 """
 
-from .data import generate_synthetic_series, load_csv_series
+from .data import generate_synthetic_series, load_csv_series, load_csv_frame
 from .validation import (
     validate_price_frame,
     validate_window_config,
@@ -47,6 +47,7 @@ __version__ = "1.2.0"
 __all__ = [
     "generate_synthetic_series",
     "load_csv_series",
+    "load_csv_frame",
     "validate_price_frame",
     "validate_window_config",
     "ValidationError",

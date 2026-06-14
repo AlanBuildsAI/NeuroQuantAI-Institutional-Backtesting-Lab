@@ -183,14 +183,39 @@ The loader validates sorted, de-duplicated timestamps and a clean, positive
 
 ---
 
-## Live demo (GitHub Pages)
+## Interactive demo
 
-The self-contained dashboard is published as a static page by the
-[`Deploy dashboard to Pages`](.github/workflows/pages.yml) workflow after tests
-pass. The page is a single offline HTML file (no external scripts or CDNs).
+The project offers two complementary demo layers:
 
-- **Demo URL:** `https://AlanBuildsAI.github.io/NeuroQuantAI-Institutional-Backtesting-Lab/`
-  *(enable Pages once: repo Settings → Pages → Source: “GitHub Actions”).*
+- **GitHub Pages — polished static report.** The self-contained dashboard is
+  published as a static page by the
+  [`Deploy dashboard to Pages`](.github/workflows/pages.yml) workflow after tests
+  pass. It is a single offline HTML file (no external scripts or CDNs).
+  - **Dashboard URL:** `https://AlanBuildsAI.github.io/NeuroQuantAI-Institutional-Backtesting-Lab/`
+    *(enable Pages once: repo Settings → Pages → Source: “GitHub Actions”).*
+
+- **Streamlit — interactive research demo.** [`streamlit_app.py`](streamlit_app.py)
+  lets a visitor generate synthetic data (or upload a local CSV for the session),
+  choose a signal family and parameters, and run the same validation,
+  walk-forward, Monte Carlo, regime, cost-sensitivity and stress diagnostics
+  live. It performs no network calls and never persists uploaded data.
+  - **Interactive demo URL:** coming soon
+
+Run the interactive demo locally:
+
+```bash
+.venv/bin/pip install -r requirements.txt
+streamlit run streamlit_app.py
+```
+
+### Deploy on Streamlit Community Cloud
+
+1. Go to [Streamlit Community Cloud](https://streamlit.io/cloud).
+2. Connect this GitHub repository.
+3. Select branch `main`.
+4. Set the app file to `streamlit_app.py`.
+5. Python dependencies are installed from `requirements.txt`.
+6. Click **Deploy**.
 
 ---
 
