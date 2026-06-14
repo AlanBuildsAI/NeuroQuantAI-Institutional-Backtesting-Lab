@@ -1,0 +1,4 @@
+short_window,long_window,total_return_pct,benchmark_return_pct,annualized_volatility_pct,sharpe_ratio,sortino_ratio,max_drawdown_pct,active_days,trade_count,market_correlation
+20,60,-13.31,3.55,14.38,-0.42,-0.44,-20.42,235,11,0.67
+5,20,-15.64,3.55,14.71,-0.50,-0.59,-24.00,244,32,0.69
+10,30,-18.65,3.55,14.30,-0.65,-0.70,-24.67,233,21,0.67
