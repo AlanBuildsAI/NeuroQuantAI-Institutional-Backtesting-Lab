@@ -1,14 +1,17 @@
-"""NeuroQuant analytics case study package.
+"""NeuroQuantAI — Synthetic Quant Research & Analytics Lab.
 
-A small, reproducible Python analytics workflow built around a synthetic
-time series. It demonstrates data validation, experiment design, KPI
-metric construction, scenario comparison, and decision-ready reporting.
+A reproducible Python research workflow built around a synthetic signal
+series. It demonstrates data validation, signal evaluation, benchmark
+comparison, in/out-of-sample testing, walk-forward validation, Monte Carlo
+robustness analysis, KPI reporting, and decision-ready visual reporting.
 
-This is an ANALYTICS DEMONSTRATION using synthetic data only. It is not a
-trading system and contains no financial advice or market predictions.
+This is a quant-inspired RESEARCH DEMONSTRATION on synthetic data by default
+(optional local CSV research data is supported). It is not a trading system,
+not financial advice, not an investment recommendation, and makes no
+performance guarantees.
 """
 
-from .data import generate_synthetic_series
+from .data import generate_synthetic_series, load_csv_series
 from .validation import (
     validate_price_frame,
     validate_window_config,
@@ -20,8 +23,13 @@ from .backtest import (
     BacktestConfig,
 )
 from .metrics import compute_kpis
+from .research import (
+    split_train_test,
+    walk_forward_validation,
+    monte_carlo_bootstrap,
+)
 
-__version__ = "1.0.0"
+__version__ = "1.1.0"
 
 # Note: `pipeline` is intentionally NOT imported here. Eagerly importing it
 # would load the module during package init, which triggers a RuntimeWarning
@@ -30,6 +38,7 @@ __version__ = "1.0.0"
 
 __all__ = [
     "generate_synthetic_series",
+    "load_csv_series",
     "validate_price_frame",
     "validate_window_config",
     "ValidationError",
@@ -37,4 +46,7 @@ __all__ = [
     "run_parameter_sweep",
     "BacktestConfig",
     "compute_kpis",
+    "split_train_test",
+    "walk_forward_validation",
+    "monte_carlo_bootstrap",
 ]

@@ -1,7 +1,7 @@
-# Analytics Explanation (Plain English)
+# Research Explanation (Plain English)
 
-This is the same story the code tells, without the jargon. It follows one row
-of data from raw input all the way to a decision-ready dashboard.
+This is the same story the code tells, without the jargon. It follows the data
+from raw input all the way to a decision-ready research dashboard.
 
 ## 1. Start with controlled, reproducible data
 
@@ -53,16 +53,32 @@ slow windows and put the results in a tidy table. A heatmap then shows at a
 glance whether good results are **consistent** across settings or just a lucky
 one-off cell.
 
-## 7. Visualise and report
+## 7. Don't judge a setting on the data that picked it
+
+Picking the "best" setting and then grading it on the same data is how analysts
+fool themselves. So we split the timeline into an earlier **training** stretch
+and a later **test** stretch the selection never sees, choose the setting on
+training, and report how it does on the unseen test. We then repeat this
+**walk-forward** — train, test, step forward — to see whether the choice holds
+up fold after fold.
+
+## 8. Stress-test the result
+
+Finally we ask "how lucky was the ordering of returns?" by reshuffling the
+realised returns thousands of times (a **Monte Carlo bootstrap**) to see the
+range of outcomes and how often a path ends in a loss. This describes how
+*stable* the result is — it does not predict the future.
+
+## 9. Visualise and report
 
 Finally we turn the numbers into a small set of clean charts and a one-page HTML
 dashboard with KPI cards, the best configuration, and a one-line analyst
 takeaway. The dashboard opens offline in any browser — no internet, no setup —
 so a reviewer can understand the whole study in a couple of minutes.
 
-## 8. Interpret honestly
+## 10. Interpret honestly
 
-If the rule beats the baseline, we say so. If it does not — which on synthetic
-data it often will not — we say that too. The value of the project is the
-**trustworthy process**: controlled data, validation, a fair benchmark, honest
-metrics, and clear communication.
+If the candidate signal beats the baseline, we say so. If it does not — which on
+synthetic data it often will not — we say that too. The value of the project is
+the **trustworthy process**: controlled data, validation, a fair benchmark,
+out-of-sample and robustness testing, honest metrics, and clear communication.

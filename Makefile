@@ -1,4 +1,4 @@
-# NeuroQuant analytics case study — common commands.
+# NeuroQuantAI — Synthetic Quant Research & Analytics Lab — common commands.
 # Uses the project virtualenv at .venv if present, else system python.
 
 PYTHON ?= .venv/bin/python

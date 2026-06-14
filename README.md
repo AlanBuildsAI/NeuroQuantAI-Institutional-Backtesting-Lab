@@ -1,53 +1,112 @@
-# NeuroQuant — Python Analytics Case Study
+# NeuroQuantAI — Synthetic Quant Research & Analytics Lab
 
-A small, polished, end-to-end **Python data-analytics case study**. It takes a
-reproducible synthetic time series and walks it through a complete analyst
-workflow: **data validation → experiment design → KPI metric design → scenario
-comparison → visual storytelling → decision-ready reporting.**
+[![Tests](https://github.com/AlanBuildsAI/NeuroQuantAI-Institutional-Backtesting-Lab/actions/workflows/tests.yml/badge.svg)](https://github.com/AlanBuildsAI/NeuroQuantAI-Institutional-Backtesting-Lab/actions/workflows/tests.yml)
 
-> **Disclaimer.** This is an **analytics demonstration built on synthetic data
-> only**. It is **not** a trading system, **not** financial advice, and makes
-> **no** market-prediction or performance claims. There are no API keys, no live
-> data, and no brokerage connections anywhere in this repo.
+NeuroQuantAI is a quant-inspired Python research and analytics lab for
+evaluating candidate signals using reproducible data pipelines, validation
+gates, benchmark comparison, transaction-cost assumptions, in/out-of-sample
+testing, walk-forward validation, Monte Carlo robustness checks, KPI
+scorecards, and self-contained visual reporting.
 
----
-
-## What it is
-
-The project frames a classic "moving-average crossover" rule as an **analytics
-experiment** over a neutral *synthetic signal series*. The interesting part is
-not the rule — it is the **repeatable, auditable workflow** around it: validated
-inputs, a transparent baseline, a parameter sweep across scenarios, a documented
-KPI scorecard, and a self-contained one-page dashboard a non-technical reviewer
-can read in under two minutes.
-
-![Executive dashboard](docs/assets/dashboard_snapshot.png)
-
-![Strategy vs baseline](docs/assets/equity_curve.png)
-
-![Parameter sweep heatmap](docs/assets/sweep_heatmap.png)
+> **Disclaimer.** This is a research and analytics **demonstration**. It runs
+> on **synthetic data by default**; optional local CSV research data can be
+> supplied by the user. It is **not** financial advice, **not** an investment
+> recommendation, **not** a live-trading system, and makes **no performance
+> guarantees**. There are **no live data feeds, no APIs, and no brokerage
+> connections** anywhere in this repository.
 
 ---
 
-## Analytics skills demonstrated
+## What this is
 
-- **Data validation / data quality** — schema, missing values, non-positive
-  values, sufficiency checks, and configuration guards that fail fast with clear
-  messages (`src/neuroquant/validation.py`).
-- **Reproducibility** — every result is seeded; the committed outputs regenerate
-  byte-stable (`src/neuroquant/data.py`).
-- **Experiment design & benchmark comparison** — each scenario is compared to a
-  transparent buy-and-hold **baseline**; signals are shifted by one step to
-  avoid **look-ahead bias** (`src/neuroquant/backtest.py`).
-- **KPI / metric design** — a documented scorecard (return, volatility, Sharpe,
-  Sortino, drawdown, correlation, win/loss, etc.) (`src/neuroquant/metrics.py`).
-- **Scenario analysis** — a parameter sweep across window combinations returns a
-  tidy comparison table.
-- **Visual storytelling** — senior-level matplotlib charts, each stating its
-  analytical question and takeaway (`src/neuroquant/visualization.py`).
-- **Decision-ready reporting** — clean CSV exports plus a self-contained offline
-  HTML dashboard (`src/neuroquant/reporting.py`).
-- **Documentation** — methodology, plain-English walkthrough, portfolio notes.
+A serious, end-to-end demonstration of how credible quant research is done —
+applied to a neutral *synthetic signal series* so the focus stays on
+**methodology, not market calls**. The candidate signal (a moving-average
+crossover) is deliberately simple; the value is the disciplined workflow around
+it: validated inputs, a fair baseline, parameters chosen **in-sample** and
+judged **out-of-sample**, walk-forward folds, Monte Carlo robustness, a
+documented KPI scorecard, and a one-page dashboard a reviewer can read in
+minutes.
+
+"Backtesting" here is used as a **controlled research experiment** for measuring
+and comparing signals under honest assumptions — not as trading advice or a
+deployment-ready system.
+
+![Executive research dashboard](docs/assets/dashboard_snapshot.png)
+
+---
+
+## Research workflow
+
+```
+data generation / optional CSV load
+        ↓
+   validation gates
+        ↓
+in-sample parameter sweep  →  select candidate configuration
+        ↓
+train / test split  →  out-of-sample evaluation
+        ↓
+   walk-forward validation
+        ↓
+  Monte Carlo robustness
+        ↓
+KPI scorecard  →  visuals  →  self-contained HTML report
+```
+
+Parameters are selected on the in-sample period only and judged on a held-out
+out-of-sample period, so headline numbers are not the product of fitting and
+scoring on the same data.
+
+---
+
+## What this project demonstrates
+
+- **Quant research methodology** — hypothesis → evidence, not curve-fitting.
+- **Reproducible Python pipeline** — seeded synthetic data; outputs regenerate
+  byte-stable from one command.
+- **Validation gates** — schema, missing/`NaN`, non-positive, and sufficiency
+  checks that fail fast with clear messages.
+- **Bias-aware signal evaluation** — signals are shifted by one bar to avoid
+  **look-ahead bias**; parameter selection is isolated from evaluation.
+- **Benchmark comparison** — every configuration is measured against a
+  transparent buy-and-hold **baseline**.
+- **Cost / slippage assumptions** — a simple transaction cost is charged on
+  every position change.
+- **Scenario analysis** — a parameter sweep across window combinations, as a
+  tidy table and a Sharpe heatmap.
+- **Walk-forward testing** — rolling train/test folds to probe stability on
+  unseen data.
+- **Monte Carlo robustness** — bootstrapped return paths describing the spread
+  of outcomes and the probability of a losing path.
+- **KPI reporting** — a documented risk/return scorecard (Sharpe, Sortino,
+  Calmar, information ratio, drawdown, turnover, and more).
+- **Dashboarding** — a self-contained, offline HTML report.
+- **Testing & CI** — a fast `pytest` suite run on every push via GitHub Actions.
+
+---
+
+## Visual overview
+
+| Visual | What it answers |
+| --- | --- |
+| ![Executive dashboard](docs/assets/dashboard_snapshot.png) | **Executive dashboard** — selected configuration, KPI scorecard, and analyst takeaway at a glance. |
+| ![Scenario comparison](docs/assets/scenario_comparison.png) | **Scenario comparison** — top configurations across return, risk-adjusted score, and downside. |
+| ![Baseline comparison](docs/assets/equity_curve.png) | **Baseline comparison** — does the candidate signal add information versus simply holding the series? |
+| ![Parameter sweep heatmap](docs/assets/sweep_heatmap.png) | **Parameter sweep** — how the outcome changes across the experiment grid (robust, or a lucky cell?). |
+| ![Walk-forward validation](docs/assets/walk_forward.png) | **Walk-forward validation** — does the in-sample choice survive out-of-sample? |
+| ![Monte Carlo robustness](docs/assets/monte_carlo.png) | **Monte Carlo robustness** — how stable is the outcome when returns are resampled? |
+
+---
+
+## Why results may be weak or negative
+
+The goal is **not** to cherry-pick a winning backtest. It is to test a
+hypothesis honestly. On synthetic data a simple rule will frequently fail to
+beat its baseline — and that is a perfectly good result. A weak or negative
+finding is valuable when it is **reproducible, fairly measured, and clearly
+communicated**, because in real research "the evidence does not support the
+hypothesis" is often the most useful conclusion you can deliver.
 
 ---
 
@@ -57,10 +116,10 @@ Using the bundled virtualenv (`.venv`) and the Makefile:
 
 ```bash
 make install   # install pandas, numpy, matplotlib, pytest
-make run       # run the full pipeline -> charts, CSVs, HTML dashboard
+make run        # run the full pipeline -> charts, CSVs, HTML dashboard
 make report    # alias for run (regenerates all deliverables)
-make test      # run the pytest suite
-make clean     # remove generated artefacts
+make test       # run the pytest suite
+make clean      # remove generated artefacts
 ```
 
 Equivalent raw commands (no Make required):
@@ -78,61 +137,70 @@ Optional editable install (then drop the `PYTHONPATH=src` prefix):
 .venv/bin/pip install -e .
 ```
 
+Using your own research data (optional, offline only):
+
+```python
+from neuroquant.data import load_csv_series
+frame = load_csv_series("my_series.csv")  # needs date/timestamp + close columns
+```
+
 ---
 
-## Outputs created
+## Outputs
 
-| Path | What it is |
+Charts in `docs/assets/` (PNG + SVG):
+
+| File | What it is |
 | --- | --- |
-| `docs/assets/dashboard_snapshot.{png,svg}` | Executive KPI-card snapshot |
-| `docs/assets/equity_curve.{png,svg}` | Strategy vs baseline cumulative return |
-| `docs/assets/drawdown.{png,svg}` | Drawdown (risk) profile |
-| `docs/assets/scenario_comparison.{png,svg}` | Top configs across return / Sharpe / drawdown |
-| `docs/assets/sweep_heatmap.{png,svg}` | Sharpe across every window combination |
-| `docs/assets/return_distribution.{png,svg}` | Daily return histogram |
-| `sample_outputs/parameter_sweep_summary.csv` | Tidy scenario comparison table |
-| `sample_outputs/equity_curve_sample.csv` | Per-day equity curve of the best config |
-| `sample_outputs/dashboard.html` | Self-contained one-page report (opens offline) |
+| `dashboard_snapshot` | Executive KPI-card snapshot |
+| `equity_curve` | Strategy vs baseline cumulative return |
+| `drawdown` | Drawdown (risk) profile |
+| `scenario_comparison` | Top configs across return / Sharpe / drawdown |
+| `sweep_heatmap` | Sharpe across every window combination |
+| `return_distribution` | Daily return histogram |
+| `walk_forward` | In-sample vs out-of-sample Sharpe by fold |
+| `monte_carlo` | Bootstrapped total-return distribution |
+
+Reports in `sample_outputs/`:
+
+| File | What it is |
+| --- | --- |
+| `dashboard.html` | Self-contained one-page report (opens offline) |
+| `parameter_sweep_summary.csv` | Tidy scenario comparison table |
+| `equity_curve_sample.csv` | Per-day equity curve of the selected config |
+| `walk_forward_summary.csv` | Per-fold walk-forward results |
 
 ---
 
-## What the dashboard means
+## Limitations
 
-The dashboard answers an analyst's questions, not a trader's:
-
-- **Best config / Top Sharpe** — which scenario looked strongest on a
-  risk-adjusted basis in this controlled experiment.
-- **Strategy vs baseline return** — did the rule add anything over the simple
-  benchmark? (Often it does not — that is fine; see below.)
-- **Max drawdown** — the worst peak-to-trough decline, a plain risk read.
-- **Trades / active days** — how much the strategy actually acted.
-- **Analyst takeaway** — a one-line, decision-ready interpretation.
+- Synthetic data by default; it has no real-world structure and results do not
+  generalise to any market.
+- A single, deliberately simple signal family (one moving-average crossover).
+- No live trading, no order routing, and no execution modelling beyond a
+  simplified flat cost / slippage assumption.
+- Not investment advice and not production trading infrastructure.
 
 ---
 
-## Why weak or negative results are acceptable here
+## Future improvements
 
-This is an **analytics** portfolio piece. The deliverable is a **trustworthy,
-reproducible workflow** — clean data, a fair benchmark, honest metrics, and
-clear reporting — **not** a profitable model. A negative Sharpe on synthetic
-data is a perfectly good result: it shows the pipeline measures and reports
-reality faithfully instead of cherry-picking a flattering number. In real
-business analytics, "the test was inconclusive, and here is the rigorous
-evidence" is frequently the most valuable answer you can deliver.
+- Additional signal families and feature engineering.
+- More realistic transaction-cost and slippage modelling.
+- Portfolio-level (multi-series) testing.
+- First-class local CSV research datasets and loaders.
+- Richer report export options.
 
 ---
 
-## Why it is relevant to analytics roles
+## Why this matters across analytics roles
 
-The exact same workflow transfers directly to **Data Analyst**, **Business
-Analyst**, **Operations Analyst**, and **Product / Analytics** roles:
-
-- validating messy inputs before trusting them,
-- designing experiments with a fair benchmark,
-- defining and documenting KPIs,
-- comparing scenarios in a tidy table,
-- turning numbers into clear visuals and a one-page decision summary,
-- and documenting the whole thing so others can reproduce it.
+The same workflow — validate inputs, design a fair experiment, separate
+selection from evaluation, test robustness, measure risk as well as return, and
+communicate the evidence — transfers directly to **data analytics**, **business
+analytics**, **operations analytics**, **product analytics**, **healthcare
+operations analytics**, and **quant analytics**. The differentiator is not a
+clever model; it is a trustworthy, reproducible, well-communicated process.
 
 Further reading: [`docs/methodology.md`](docs/methodology.md),
 [`docs/analytics_explanation.md`](docs/analytics_explanation.md),

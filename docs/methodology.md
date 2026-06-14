@@ -1,14 +1,17 @@
-# Methodology
+# Methodology — NeuroQuantAI Synthetic Quant Research & Analytics Lab
 
 ## Research question
 
-> Given a controlled synthetic signal series, can a simple, transparent rule
-> (a moving-average crossover) be shown to add value over a buy-and-hold
-> **baseline** — and, just as importantly, can the whole investigation be made
-> **reproducible, validated, and decision-ready**?
+> Given a controlled synthetic signal series, can a simple, transparent
+> candidate signal (a moving-average crossover) be shown to add value over a
+> buy-and-hold **baseline** — and, just as importantly, can the whole
+> investigation be made **reproducible, validated, bias-aware, robustness-tested,
+> and decision-ready**?
 
-The emphasis is deliberately on the *workflow*, not on "winning". The output is
-evidence and a clear interpretation, whatever the sign of the result.
+The emphasis is deliberately on the *research workflow*, not on "winning". The
+output is evidence and a clear interpretation, whatever the sign of the result.
+"Backtesting" here means a **controlled research experiment**, not trading
+advice or a deployment-ready system.
 
 ## Synthetic data generation
 
@@ -21,7 +24,13 @@ value_t = value_{t-1} * exp(drift + volatility * z_t)
 with `z_t` drawn from a **seeded** NumPy generator. A fixed seed means the
 series — and therefore every chart, CSV, and KPI — is byte-stable across runs.
 We call it a *synthetic signal series* (not an asset price) to keep the project
-firmly in analytics territory and away from any market-prediction framing.
+firmly in research territory and away from any market-prediction framing.
+
+Synthetic data is the **default**. An optional CSV loader
+(`neuroquant.data.load_csv_series`) lets an analyst point the same pipeline at
+their own local historical data (a timestamp column plus `close`). It reads a
+local file only — no network, no API — and applies the same data-quality gates
+(sorted, de-duplicated timestamps; no missing or non-positive `close`).
 
 ## Validation checks
 
@@ -62,28 +71,56 @@ We evaluate a grid of (short, long) window pairs and collect the KPIs into a
 tidy table sorted by Sharpe. This shows whether any apparent edge is **robust
 across settings** or just a lucky single cell — visualised as a Sharpe heatmap.
 
+## In-sample / out-of-sample split
+
+Choosing parameters and judging them on the same data is the most common way to
+fool yourself. We split the series chronologically into an **in-sample**
+(training) period and a later, non-overlapping **out-of-sample** (test) period.
+The configuration is selected on the in-sample sweep and then evaluated on the
+out-of-sample period it never saw. Both reads are reported side by side.
+
+## Walk-forward validation
+
+A single split is one trial. Walk-forward validation repeats the
+select-then-evaluate cycle over rolling windows: pick the best configuration on
+a training window, evaluate it on the *next* window, then step forward. The
+result is a per-fold table comparing in-sample and out-of-sample Sharpe — a
+direct read on whether an in-sample choice tends to survive on unseen data.
+
+## Monte Carlo robustness
+
+To gauge how fragile an outcome is, we bootstrap the realised per-bar return
+stream (resampling with replacement) into many alternative equity paths and
+summarise the spread: median, 5th and 95th percentile total return, the
+**probability of a losing path**, and the drawdown distribution. This is a
+descriptive robustness diagnostic, not a forecast.
+
 ## Metrics selected and why
 
 | Metric | Why it is included |
 | --- | --- |
 | `total_return` / `baseline_return` | Headline outcome vs the benchmark |
+| `excess_return` | Strategy return net of the baseline |
+| `annualized_return` | Compounded growth on a one-year scale |
 | `annualized_volatility` | Standardised risk scale |
 | `sharpe_ratio` | Reward per unit of total risk |
 | `sortino_ratio` | Reward per unit of *downside* risk |
+| `calmar_ratio` | Return per unit of worst-case drawdown |
+| `information_ratio` | Active return per unit of tracking error vs baseline |
 | `max_drawdown` | Worst-case peak-to-trough decline |
-| `active_days` | How often the strategy is exposed |
-| `trade_count` | Activity / turnover (cost driver) |
-| `correlation_to_baseline` | How differentiated the strategy really is |
+| `active_days` | How often the signal is exposed |
+| `trade_count` / `turnover` | Activity (cost drivers) |
+| `correlation_to_baseline` | How differentiated the signal really is |
 | `win_loss_ratio` | Shape of the return distribution |
 
 ## Limitations
 
 - Synthetic data has no real-world structure; results do not generalise to any
   market and are not meant to.
-- A single random seed is one realisation; broad conclusions would need many
-  seeds (a natural next step).
-- The cost model is intentionally simple (a flat per-change fraction).
-- The strategy family is deliberately minimal to keep focus on the workflow.
+- A single random seed is one realisation; the walk-forward and Monte Carlo
+  steps probe stability, but broad conclusions would still need many seeds.
+- The cost / slippage model is intentionally simple (a flat per-change fraction).
+- The signal family is deliberately minimal to keep focus on the workflow.
 
 ## Why it avoids live data and prediction claims
 
@@ -91,13 +128,15 @@ Using only seeded synthetic data keeps the project **reproducible**, removes any
 dependence on third-party APIs or keys, and makes clear that the goal is a
 demonstration of analytics craft — not forecasting markets or giving advice.
 
-## What a hiring manager should evaluate
+## What a reviewer should evaluate
 
 - Are inputs validated before they are trusted?
-- Is the experiment fair (benchmark, no look-ahead)?
+- Is the experiment fair (benchmark, no look-ahead, selection separated from
+  evaluation)?
 - Are the metrics sensible, documented, and honestly reported?
+- Is the result tested out-of-sample and for robustness?
 - Is everything reproducible from a seed?
-- Is the result communicated clearly to a non-technical audience?
+- Is the conclusion communicated clearly to a non-technical audience?
 
 ## Methodology references / concepts
 
@@ -108,6 +147,9 @@ proprietary method:
 - **Reproducibility** via fixed random seeds and committed outputs.
 - **Benchmark / baseline comparison** so results are interpretable.
 - **Avoiding look-ahead bias** by lagging signals relative to information.
+- **Out-of-sample evaluation and walk-forward validation** to separate
+  parameter selection from judgement.
+- **Bootstrap / Monte Carlo robustness analysis** to gauge outcome stability.
 - **Scenario / sensitivity analysis** across a parameter grid.
 - **Clear visual and written reporting** for decision-makers.
 

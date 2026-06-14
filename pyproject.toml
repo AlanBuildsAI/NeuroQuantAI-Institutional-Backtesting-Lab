@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "neuroquant"
-version = "1.0.0"
-description = "A reproducible Python analytics case study built on a synthetic time series (validation, experiment design, KPI metrics, scenario comparison, reporting)."
+version = "1.1.0"
+description = "A quant-inspired, reproducible Python research and analytics lab built on a synthetic signal series (validation, baseline comparison, in/out-of-sample and walk-forward testing, Monte Carlo robustness, KPI reporting)."
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }

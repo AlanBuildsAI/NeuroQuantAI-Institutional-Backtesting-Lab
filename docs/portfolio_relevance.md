@@ -1,25 +1,29 @@
-# Portfolio Relevance
+# Relevance Across Analytics Roles
 
-## Interview-ready summary
+## One-line summary
 
-> "I built this as a Python analytics case study. The goal was not to prove a
-> profitable model, but to demonstrate a reproducible workflow: controlled data,
-> validation, scenario comparison, KPI design, baseline comparison, visual
-> reporting, and clear documentation."
+> A quant-inspired Python research lab. The goal is not to prove a profitable
+> model, but to demonstrate a credible, reproducible workflow: controlled data,
+> validation, scenario comparison, KPI design, baseline comparison,
+> out-of-sample and walk-forward testing, Monte Carlo robustness, visual
+> reporting, and clear documentation.
 
-## Why this project matters for analytics roles
+## Why this project matters for analytics work
 
 Strip away the finance veneer and what remains is a complete, transferable
-analytics workflow — exactly what employers want to see evidence of:
+research-analytics workflow:
 
 - **Data cleaning & validation.** Explicit data-quality gates (missing values,
   bad values, schema, sufficiency) that fail fast with clear messages.
 - **Python workflow.** Clean, modular package (`data`, `validation`, `backtest`,
-  `metrics`, `visualization`, `reporting`, `pipeline`) with small, documented
-  functions and a one-command end-to-end run.
+  `metrics`, `research`, `visualization`, `reporting`, `pipeline`) with small,
+  documented functions and a one-command end-to-end run.
 - **Experiment comparison.** A fair benchmark and a parameter sweep across
   scenarios, summarised in a tidy table — the analytics equivalent of an A/B
   test with a control.
+- **Selection vs evaluation discipline.** Parameters are chosen in-sample and
+  judged out-of-sample, with walk-forward folds and Monte Carlo robustness —
+  the same guardrails that separate credible research from overfitting.
 - **KPI design.** A documented scorecard of well-chosen metrics, each with a
   reason for being there.
 - **Dashboarding.** A self-contained, offline HTML dashboard with KPI cards, a

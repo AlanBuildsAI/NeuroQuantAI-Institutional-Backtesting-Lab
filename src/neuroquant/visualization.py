@@ -248,13 +248,21 @@ def plot_return_distribution(signals: pd.DataFrame, assets_dir: Path) -> dict:
 
 
 def plot_kpi_dashboard(
-    summary: pd.DataFrame, best_kpis: dict, assets_dir: Path
+    summary: pd.DataFrame,
+    best_kpis: dict,
+    assets_dir: Path,
+    best_config,
 ) -> dict:
-    """Executive KPI-card snapshot image (dashboard header)."""
-    best = summary.iloc[0]
+    """Executive KPI-card snapshot image (dashboard header).
+
+    ``best_config`` is the configuration selected in-sample; the cards report
+    that configuration's full-series KPIs so the label and the numbers always
+    describe the same scenario.
+    """
+    config_label = f"{best_config.short_window} / {best_config.long_window}"
     cards = [
-        ("Best config", f"{int(best.short_window)} / {int(best.long_window)}", "windows"),
-        ("Top Sharpe", f"{best.sharpe_ratio:.2f}", "risk-adjusted"),
+        ("Selected config", config_label, "in-sample pick"),
+        ("Sharpe ratio", f"{best_kpis['sharpe_ratio']:.2f}", "full series"),
         ("Strategy return", f"{best_kpis['total_return'] * 100:+.1f}%", "cumulative"),
         ("Baseline return", f"{best_kpis['baseline_return'] * 100:+.1f}%", "buy & hold"),
         ("Max drawdown", f"{best_kpis['max_drawdown'] * 100:.1f}%", "worst decline"),
@@ -285,13 +293,13 @@ def plot_kpi_dashboard(
                 fontsize=8, color="#7e9cc7", transform=ax.transAxes)
 
     fig.suptitle(
-        "Executive Dashboard — Synthetic Signal Analytics",
+        "Executive Research Dashboard — Synthetic Quant Analytics",
         fontsize=14,
         fontweight="bold",
     )
     takeaway = (
-        "Analyst takeaway: the workflow is reproducible and the best "
-        "configuration is identified via transparent baseline comparison."
+        "Analyst takeaway: a reproducible research workflow — the configuration "
+        "is selected in-sample and judged against a baseline out-of-sample."
     )
     fig.text(0.5, 0.005, takeaway, ha="center", fontsize=9,
              style="italic", color="#57606a")
@@ -299,19 +307,133 @@ def plot_kpi_dashboard(
     return _save(fig, assets_dir, "dashboard_snapshot")
 
 
+def plot_walk_forward(walk_forward: pd.DataFrame, assets_dir: Path) -> dict:
+    """Out-of-sample vs in-sample Sharpe across walk-forward folds."""
+    folds = walk_forward["fold"].astype(int).tolist()
+    x = np.arange(len(folds))
+    width = 0.38
+
+    fig, ax = plt.subplots(figsize=(8, 4.2))
+    ax.bar(
+        x - width / 2,
+        walk_forward["train_sharpe"],
+        width,
+        label="In-sample (train)",
+        color=COLOR_BASELINE,
+        alpha=0.85,
+    )
+    ax.bar(
+        x + width / 2,
+        walk_forward["test_sharpe"],
+        width,
+        label="Out-of-sample (test)",
+        color=COLOR_STRATEGY,
+        alpha=0.9,
+    )
+    ax.axhline(0, color="#d0d7de", lw=1)
+    ax.set_xticks(x)
+    ax.set_xticklabels([f"Fold {f}" for f in folds])
+    ax.set_ylabel("Sharpe ratio")
+    _titled(
+        ax,
+        "Walk-Forward Validation: In-Sample vs Out-of-Sample",
+        "Does the configuration chosen on training data hold up on unseen data?",
+    )
+    ax.legend(frameon=False, loc="best")
+
+    held = float((walk_forward["test_sharpe"] > 0).mean()) * 100
+    ax.annotate(
+        f"{held:.0f}% of folds kept a positive\nout-of-sample Sharpe",
+        xy=(0.99, 0.04),
+        xycoords="axes fraction",
+        ha="right",
+        fontsize=9,
+        color="#57606a",
+        bbox=dict(boxstyle="round", fc="#f6f8fa", ec="#d0d7de"),
+    )
+    return _save(fig, assets_dir, "walk_forward")
+
+
+def plot_monte_carlo(mc: dict, assets_dir: Path) -> dict:
+    """Distribution of bootstrapped total returns (robustness analysis)."""
+    total_returns = np.asarray(mc["total_returns"]) * 100
+    p5 = mc["p5_return"] * 100
+    median = mc["median_return"] * 100
+    p95 = mc["p95_return"] * 100
+
+    fig, ax = plt.subplots(figsize=(8, 4.2))
+    counts, _, _ = ax.hist(
+        total_returns, bins=40, color=COLOR_STRATEGY, alpha=0.55
+    )
+    ax.axvline(0, color="#57606a", lw=1)
+
+    # Headroom above the tallest bar so the percentile labels never touch it.
+    top = counts.max() * 1.22
+    ax.set_ylim(0, top)
+    for value, label, color in (
+        (p5, "5th pct", COLOR_NEGATIVE),
+        (median, "median", COLOR_POSITIVE),
+        (p95, "95th pct", COLOR_POSITIVE),
+    ):
+        ax.axvline(value, color=color, ls="--", lw=1.4)
+        ax.annotate(
+            f"{label}\n{value:+.1f}%",
+            xy=(value, top * 0.99),
+            ha="center",
+            va="top",
+            fontsize=8,
+            color=color,
+        )
+    _titled(
+        ax,
+        "Monte Carlo Robustness: Bootstrapped Total Return",
+        "How stable is the outcome when the return stream is resampled?",
+    )
+    ax.set_xlabel("Total return (%)")
+    ax.set_ylabel("Frequency")
+
+    # Probability-of-loss callout in the lower-left, away from the labels.
+    ax.annotate(
+        f"P(loss) ≈ {mc['probability_of_loss'] * 100:.0f}% over "
+        f"{mc['n_simulations']} resamples",
+        xy=(0.01, 0.05),
+        xycoords="axes fraction",
+        ha="left",
+        va="bottom",
+        fontsize=9,
+        color="#57606a",
+        bbox=dict(boxstyle="round", fc="#f6f8fa", ec="#d0d7de"),
+    )
+    return _save(fig, assets_dir, "monte_carlo")
+
+
 def build_all_charts(
     signals: pd.DataFrame,
     summary: pd.DataFrame,
     best_kpis: dict,
     assets_dir: Path,
+    best_config,
+    walk_forward: pd.DataFrame | None = None,
+    monte_carlo: dict | None = None,
 ) -> dict:
-    """Generate every chart and return a name -> {svg, png} mapping."""
+    """Generate every chart and return a name -> {svg, png} mapping.
+
+    ``walk_forward`` and ``monte_carlo`` are optional; when supplied, the
+    walk-forward and Monte Carlo robustness charts are added to the output.
+    """
     assets_dir = Path(assets_dir)
-    return {
-        "dashboard_snapshot": plot_kpi_dashboard(summary, best_kpis, assets_dir),
+    charts = {
+        "dashboard_snapshot": plot_kpi_dashboard(
+            summary, best_kpis, assets_dir, best_config
+        ),
         "equity_curve": plot_equity_curve(signals, assets_dir),
         "drawdown": plot_drawdown(signals, assets_dir),
         "scenario_comparison": plot_scenario_comparison(summary, assets_dir),
         "sweep_heatmap": plot_sweep_heatmap(summary, assets_dir),
         "return_distribution": plot_return_distribution(signals, assets_dir),
     }
+    if walk_forward is not None and not walk_forward.empty:
+        charts["walk_forward"] = plot_walk_forward(walk_forward, assets_dir)
+    if monte_carlo is not None:
+        charts["monte_carlo"] = plot_monte_carlo(monte_carlo, assets_dir)
+    return charts

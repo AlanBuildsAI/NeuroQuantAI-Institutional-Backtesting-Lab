@@ -24,6 +24,20 @@ def test_signals_are_shifted_to_avoid_lookahead(sample_data):
     assert signals["position"].iloc[0] == 0.0
 
 
+def test_signals_contain_expected_columns(sample_data):
+    signals = generate_signals(sample_data, BacktestConfig(20, 60))
+    expected = {
+        "position",
+        "market_return",
+        "strategy_return",
+        "baseline_return",
+        "strategy_equity",
+        "baseline_equity",
+        "cost",
+    }
+    assert expected.issubset(signals.columns)
+
+
 def test_parameter_sweep_returns_expected_columns(sample_data):
     summary = run_parameter_sweep(
         sample_data, short_windows=[10, 20], long_windows=[60, 90]
