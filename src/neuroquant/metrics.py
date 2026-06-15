@@ -161,3 +161,52 @@ def compute_kpis(signals: pd.DataFrame) -> dict:
         "correlation_to_baseline": correlation_to_baseline,
         "win_loss_ratio": float(win_loss_ratio),
     }
+
+
+def compute_extended_kpis(signals: pd.DataFrame) -> dict:
+    """Richer quant-review metrics layered on top of :func:`compute_kpis`.
+
+    Adds exposure, gross-vs-net, cost-drag, rolling-Sharpe and (when a
+    benchmark is present) benchmark-excess metrics. Used by the interactive lab;
+    the core pipeline keeps using :func:`compute_kpis` so its outputs are
+    unchanged. Metrics that are not meaningful for a given run are returned as
+    ``NaN`` rather than fabricated.
+    """
+    out = dict(compute_kpis(signals))
+
+    net = signals["strategy_return"]
+    position = signals["position"]
+
+    out["cagr"] = out["annualized_return"]
+    out["exposure_avg"] = float(position.mean())
+    out["exposure_max"] = float(position.max())
+    out["best_day"] = float(net.max())
+    out["worst_day"] = float(net.min())
+    out["win_rate"] = float((net > 0).mean())
+
+    if "gross_equity" in signals.columns:
+        gross_total = float(signals["gross_equity"].iloc[-1] - 1.0)
+    elif "gross_return" in signals.columns:
+        gross_total = float((1.0 + signals["gross_return"]).prod() - 1.0)
+    else:
+        gross_total = out["total_return"]
+    out["gross_return"] = gross_total
+    out["cost_drag"] = gross_total - out["total_return"]
+
+    # Lazy import avoids a circular dependency at module load.
+    from .risk import rolling_sharpe
+
+    rolling = rolling_sharpe(net, 63).dropna()
+    out["rolling_sharpe_median"] = (
+        float(rolling.median()) if len(rolling) else float("nan")
+    )
+
+    if "benchmark_equity" in signals.columns:
+        bench_total = float(signals["benchmark_equity"].iloc[-1] - 1.0)
+        out["benchmark_return"] = bench_total
+        out["benchmark_excess"] = out["total_return"] - bench_total
+    else:
+        out["benchmark_return"] = float("nan")
+        out["benchmark_excess"] = float("nan")
+
+    return out

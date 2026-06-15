@@ -38,15 +38,22 @@ from neuroquant.app_helpers import (  # noqa: E402
     EXECUTION_PROFILES,
     ResearchParams,
     analyst_warnings,
+    benchmark_frame,
+    cost_breakdown,
     drawdown_frame,
     equity_frame,
+    exposure_frame,
+    gross_net_frame,
+    load_sample_csv,
     load_uploaded_csv,
     make_synthetic,
     resolve_execution,
+    rolling_risk_frame,
     run_research,
     scorecard_frame,
 )
 from neuroquant.signals import SIGNAL_FAMILIES  # noqa: E402
+from neuroquant.sizing import SIZING_METHODS  # noqa: E402
 
 st.set_page_config(
     page_title="NeuroQuantAI — Interactive Quant Research Lab",
@@ -73,6 +80,8 @@ TAB_CAPTIONS = {
     "Monte Carlo": "Resamples observed returns to estimate robustness — not future "
     "performance.",
     "Regime": "Shows how results differ across volatility environments.",
+    "Sizing & risk": "Gross vs net, exposure, cost breakdown, and rolling risk "
+    "under the chosen sizing/risk controls.",
     "Cost & stress": "Shows whether the result is fragile to costs or adverse "
     "assumptions.",
 }
@@ -165,7 +174,14 @@ with st.expander("About broker / exchange connections", expanded=False):
 with st.sidebar:
     # A. Data source --------------------------------------------------------
     st.header("A · Data source")
-    data_mode = st.radio("Data mode", ["Synthetic data", "Upload CSV"])
+    data_mode = st.radio(
+        "Data mode", ["Synthetic data", "Sample CSV", "Upload CSV"]
+    )
+    if data_mode == "Sample CSV":
+        st.caption(
+            "Bundled **synthetic** sample (with a benchmark column) — offline, "
+            "no network. See `data/samples/`."
+        )
 
     # B. Asset profile ------------------------------------------------------
     st.header("B · Asset profile")
@@ -192,7 +208,7 @@ with st.sidebar:
             "Volatility", value=float(asset["volatility"]), step=0.001,
             format="%.3f",
         )
-    else:
+    elif data_mode == "Upload CSV":
         uploaded = st.file_uploader(
             "Upload CSV (date/timestamp + close columns)", type=["csv"]
         )
@@ -200,6 +216,7 @@ with st.sidebar:
             "Processed in-memory for this session only — never saved, never "
             "uploaded anywhere."
         )
+    # "Sample CSV" needs no extra controls; it loads the bundled synthetic file.
 
     # C. Execution / connection assumptions ---------------------------------
     st.header("C · Execution profile")
@@ -279,6 +296,38 @@ with st.sidebar:
     show_cost = st.checkbox("Include cost sensitivity", value=True)
     st.caption("Walk-forward windows are sized automatically from the data length.")
 
+    # F. Position sizing & risk --------------------------------------------
+    st.header("F · Position sizing & risk")
+    sizing_method = st.selectbox("Sizing method", list(SIZING_METHODS))
+    st.caption(
+        "Conservative defaults: no leverage, no shorting. `fixed_unit` keeps the "
+        "original 0/1 long-or-flat behaviour."
+    )
+    target_volatility = 0.15
+    fixed_fraction = 1.0
+    if sizing_method == "volatility_target":
+        target_volatility = st.slider(
+            "Target volatility (annualised)", 0.05, 0.40, 0.15, 0.01
+        )
+    elif sizing_method in ("fixed_fraction", "capped_exposure"):
+        fixed_fraction = st.slider("Exposure fraction", 0.1, 1.0, 1.0, 0.1)
+    max_exposure = st.slider("Max exposure", 0.1, 1.0, 1.0, 0.1)
+    allow_short = st.checkbox("Allow shorting", value=False)
+    st.caption(
+        "Shorting is off by default and rarely meaningful for long-or-flat signals."
+    )
+
+    use_risk_controls = st.checkbox("Risk controls (volatility cap)", value=False)
+    vol_cap = 0.30
+    if use_risk_controls:
+        vol_cap = st.slider("Volatility cap (annualised)", 0.10, 0.60, 0.30, 0.05)
+    use_drawdown_guard = st.checkbox("Drawdown guard", value=False)
+    drawdown_guard_level = 0.20
+    if use_drawdown_guard:
+        drawdown_guard_level = st.slider(
+            "Drawdown guard level", 0.05, 0.50, 0.20, 0.05
+        )
+
     run_clicked = st.button("Run research", type="primary", use_container_width=True)
 
 
@@ -290,11 +339,22 @@ if run_clicked:
                 st.error("Please upload a CSV file, or switch to synthetic data.")
                 st.stop()
             frame = load_uploaded_csv(uploaded)
+        elif data_mode == "Sample CSV":
+            frame = load_sample_csv()
         else:
             frame = _cached_synthetic(
                 int(n_days), int(seed), float(start_value), float(drift),
                 float(volatility),
             )
+
+        # Pass structured cost components for preset execution profiles so the
+        # cost breakdown is meaningful; custom profiles use the single scalar.
+        if assumptions.get("is_custom", True) or assumptions.get("fee") is None:
+            fee = spread = slippage = None
+        else:
+            fee = float(assumptions["fee"])
+            spread = float(assumptions["spread"])
+            slippage = float(assumptions["slippage"])
 
         params = ResearchParams(
             signal_family=signal_family,
@@ -307,6 +367,18 @@ if run_clicked:
             train_fraction=float(train_fraction),
             use_volatility_filter=bool(use_volatility_filter),
             mc_simulations=int(mc_simulations),
+            sizing_method=sizing_method,
+            fixed_fraction=float(fixed_fraction),
+            target_volatility=float(target_volatility),
+            max_exposure=float(max_exposure),
+            allow_short=bool(allow_short),
+            use_risk_controls=bool(use_risk_controls),
+            vol_cap=float(vol_cap),
+            use_drawdown_guard=bool(use_drawdown_guard),
+            drawdown_guard_level=float(drawdown_guard_level),
+            fee=fee,
+            spread=spread if spread is not None else 0.0,
+            slippage=slippage if slippage is not None else 0.0,
         )
         with st.spinner("Running research workflow…"):
             st.session_state["result"] = run_research(frame, params)
@@ -331,8 +403,8 @@ if "result" not in st.session_state:
         st.markdown(
             """
 - **What you can change:** the data source, asset profile, execution
-  assumptions (fees / spread / slippage), signal family, parameters, and
-  validation settings.
+  assumptions (fees / spread / slippage), signal family, parameters,
+  position sizing & risk controls, and validation settings.
 - **What the output means:** risk/return KPIs vs a baseline, out-of-sample and
   walk-forward stability, Monte Carlo robustness, regime attribution, and cost
   sensitivity.
@@ -348,9 +420,12 @@ if "result" not in st.session_state:
                 float(volatility),
             )
             st.line_chart(preview.rename(columns={"close": "Synthetic close"}))
+        elif data_mode == "Sample CSV":
+            st.caption("Preview of the bundled synthetic sample (no backtest yet):")
+            st.line_chart(load_sample_csv()[["close", "benchmark_close"]])
         else:
             st.caption("Upload a CSV in the sidebar to preview and analyse it.")
-    st.info("Configure the sidebar (A → E), then click **Run research**.")
+    st.info("Configure the sidebar (A → F), then click **Run research**.")
     st.stop()
 
 
@@ -385,6 +460,23 @@ with tabs[0]:
         f"z-score {cfg.zscore_window}/{cfg.zscore_entry:g}, volatility filter "
         f"{'on' if cfg.use_volatility_filter else 'off'}."
     )
+    st.write(
+        f"**Sizing & risk:** {cfg.sizing_method}, max exposure {cfg.max_exposure:g}, "
+        f"shorting {'on' if cfg.allow_short else 'off'}, risk controls "
+        f"{'on' if cfg.use_risk_controls else 'off'}, drawdown guard "
+        f"{'on' if cfg.use_drawdown_guard else 'off'}."
+    )
+    rob = result["robustness"]
+    overfit = result["overfit"]
+    s1, s2, s3 = st.columns(3)
+    s1.metric("Robustness score", f"{rob['score']:.0f}/100")
+    s2.metric("IS → OOS Sharpe", f"{overfit['in_sample_sharpe']:.2f} → {overfit['out_of_sample_sharpe']:.2f}")
+    s3.metric("Overfit flag", "Yes" if overfit["overfit_flag"] else "No")
+    st.caption(
+        "Robustness is a transparent 0–100 heuristic from out-of-sample Sharpe, "
+        "walk-forward stability, drawdown, and cost resilience — not a rating or "
+        "forecast."
+    )
     st.info(result["takeaway"], icon="🧭")
 
 # 2 · KPI scorecards
@@ -413,6 +505,15 @@ with tabs[2]:
     st.line_chart(equity_frame(result["full_signals"]))
     st.subheader("Drawdown (%)")
     st.area_chart(drawdown_frame(result["full_signals"]))
+    bench = benchmark_frame(result["full_signals"])
+    if bench is not None:
+        st.subheader("Strategy vs benchmark — cumulative return (%)")
+        st.caption(
+            "Benchmark comes from the uploaded `benchmark_close` column."
+        )
+        st.line_chart(bench)
+        ek = result["extended_kpis"]
+        st.metric("Excess vs benchmark", f"{ek['benchmark_excess'] * 100:+.1f}%")
 
 # 4 · Walk-forward
 with tabs[3]:
@@ -464,8 +565,31 @@ with tabs[5]:
         st.dataframe(display, use_container_width=True, hide_index=True)
         st.bar_chart(regime.set_index("regime")[["total_return"]])
 
-# 7 · Cost sensitivity & stress
+# 7 · Sizing & risk
 with tabs[6]:
+    st.subheader("Gross vs net — cumulative return (%)")
+    st.caption(TAB_CAPTIONS["Sizing & risk"])
+    st.line_chart(gross_net_frame(result["full_signals"]))
+    ek = result["extended_kpis"]
+    g1, g2, g3, g4 = st.columns(4)
+    g1.metric("Gross return", f"{ek['gross_return'] * 100:+.1f}%")
+    g2.metric("Net return", f"{ek['total_return'] * 100:+.1f}%")
+    g3.metric("Cost drag", f"{ek['cost_drag'] * 100:.1f}%")
+    g4.metric("Avg exposure", f"{ek['exposure_avg']:.2f}")
+
+    st.subheader("Exposure over time")
+    st.area_chart(exposure_frame(result["full_signals"]))
+
+    ccol, rcol = st.columns(2)
+    with ccol:
+        st.subheader("Cost breakdown")
+        st.dataframe(cost_breakdown(result["full_signals"]), use_container_width=True)
+    with rcol:
+        st.subheader("Rolling risk")
+        st.line_chart(rolling_risk_frame(result["full_signals"]))
+
+# 8 · Cost sensitivity & stress
+with tabs[7]:
     st.subheader("Cost sensitivity")
     st.caption(TAB_CAPTIONS["Cost & stress"])
     if context.get("show_cost", True):
@@ -499,8 +623,9 @@ with st.expander("Limitations"):
         """
 - **Synthetic data by default**; it has no real-world structure and results do
   not generalise to any market.
-- A small set of **deliberately simple, explainable** signal families;
-  long-or-flat positions only (no shorting, leverage, or sizing).
+- A small set of **deliberately simple, explainable** signal families.
+  Position sizing and risk controls are conservative research options
+  (no leverage and no shorting by default).
 - The composite is a transparent score of simple signals — **not** a
   machine-learning model.
 - **Asset and execution profiles model assumptions, not live connections.** No

@@ -66,8 +66,9 @@ def generate_synthetic_series(
     return pd.DataFrame({"close": levels}, index=index)
 
 
-# Columns the CSV loader will keep if present, in canonical order.
-_OPTIONAL_CSV_COLUMNS = ("open", "high", "low", "volume")
+# Columns the CSV loader will keep if present, in canonical order. A
+# ``benchmark_close`` column (if supplied) enables benchmark comparison.
+_OPTIONAL_CSV_COLUMNS = ("open", "high", "low", "volume", "benchmark_close")
 
 
 def load_csv_series(
@@ -189,3 +190,43 @@ def load_csv_frame(
         raise ValueError(f"Column 'close' has {n_bad} non-positive value(s).")
 
     return frame
+
+
+def data_quality_report(
+    frame: pd.DataFrame,
+    short_rows_warning: int = 300,
+    zero_return_fraction_warning: float = 0.20,
+) -> list[str]:
+    """Return soft, non-fatal data-quality warnings for a price frame.
+
+    Unlike :func:`validate_price_frame` (which raises on hard failures), this
+    surfaces advisory notes — too few rows for stable walk-forward/robustness,
+    a high share of exactly-zero returns (stale or low-resolution data), and
+    whether a benchmark column is available. Returns an empty list when the
+    series looks clean.
+    """
+    warnings: list[str] = []
+    n = len(frame)
+    if n < short_rows_warning:
+        warnings.append(
+            f"Short series: only {n} rows. Walk-forward and robustness "
+            "diagnostics need a longer history to be meaningful."
+        )
+
+    if "close" in frame.columns and n > 1:
+        returns = frame["close"].pct_change().dropna()
+        if len(returns):
+            zero_fraction = float((returns == 0).mean())
+            if zero_fraction > zero_return_fraction_warning:
+                warnings.append(
+                    f"{zero_fraction:.0%} of returns are exactly zero — the "
+                    "series may be stale, padded, or low-resolution."
+                )
+
+    if "benchmark_close" not in frame.columns:
+        warnings.append(
+            "No 'benchmark_close' column — benchmark comparison is unavailable "
+            "for this series."
+        )
+
+    return warnings

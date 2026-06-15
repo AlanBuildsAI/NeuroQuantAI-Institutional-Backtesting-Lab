@@ -90,3 +90,48 @@ def test_config_from_row_roundtrip(sample_data):
     summary = run_config_sweep(sample_data, configs)
     best = config_from_row(summary.iloc[0])
     assert best.signal_family in SIGNAL_FAMILIES
+
+
+# --- v2: backward compatibility, sizing, costs, benchmark ------------------
+
+def test_default_engine_backward_compatible(sample_data):
+    """Default config still satisfies net = gross - cost and legacy cost math."""
+    sig = generate_signals(sample_data, BacktestConfig(20, 60))
+    assert (abs(sig["strategy_return"] - (sig["gross_return"] - sig["cost"])) < 1e-12).all()
+    legacy_cost = sig["position"].diff().abs().fillna(0.0) * 0.001
+    assert (abs(sig["cost"] - legacy_cost) < 1e-12).all()
+
+
+def test_structured_costs_decompose(sample_data):
+    sig = generate_signals(
+        sample_data,
+        BacktestConfig(20, 60, fee=0.0003, spread=0.0002, slippage=0.0001),
+    )
+    recombined = sig["fee_cost"] + sig["spread_cost"] + sig["slippage_cost"]
+    assert (abs(recombined - sig["cost"]) < 1e-12).all()
+
+
+def test_costs_make_net_below_gross(sample_data):
+    sig = generate_signals(sample_data, BacktestConfig(20, 60, cost_per_trade=0.01))
+    gross_total = sig["gross_equity"].iloc[-1] - 1
+    net_total = sig["strategy_equity"].iloc[-1] - 1
+    assert net_total <= gross_total + 1e-9
+
+
+def test_volatility_target_changes_exposure(sample_data):
+    base = generate_signals(sample_data, BacktestConfig(signal_family="momentum"))
+    sized = generate_signals(
+        sample_data,
+        BacktestConfig(signal_family="momentum", sizing_method="volatility_target",
+                       target_volatility=0.08),
+    )
+    # Sized exposure differs from the raw 0/1 exposure.
+    assert not base["position"].equals(sized["position"])
+
+
+def test_benchmark_columns_when_present(sample_data):
+    framed = sample_data.copy()
+    framed["benchmark_close"] = sample_data["close"].iloc[::-1].to_numpy()
+    sig = generate_signals(framed, BacktestConfig(20, 60))
+    assert "benchmark_return" in sig.columns
+    assert "benchmark_equity" in sig.columns

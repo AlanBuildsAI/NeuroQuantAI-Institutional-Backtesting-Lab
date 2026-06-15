@@ -194,3 +194,57 @@ def test_analyst_warnings_clean_run_returns_notes():
     )
     notes = analyst_warnings(strong, turnover_warn=0.5)
     assert isinstance(notes, list) and notes
+
+
+# --- v2: sizing/risk params, extended result, display helpers --------------
+
+def test_research_params_v2_to_config():
+    params = ResearchParams(
+        sizing_method="volatility_target", target_volatility=0.1,
+        max_exposure=0.5, use_risk_controls=True, vol_cap=0.2,
+        use_drawdown_guard=True, fee=0.0003, spread=0.0001, slippage=0.0001,
+    )
+    cfg = params.to_config()
+    assert cfg.sizing_method == "volatility_target"
+    assert cfg.max_exposure == 0.5
+    assert cfg.use_risk_controls is True
+    assert cfg.use_drawdown_guard is True
+    assert cfg.fee == 0.0003
+
+
+def test_run_research_includes_v2_outputs():
+    from neuroquant.app_helpers import make_synthetic, run_research
+    frame = make_synthetic(n_days=600, seed=42)
+    result = run_research(frame, ResearchParams(mc_simulations=100))
+    for key in ("extended_kpis", "overfit", "robustness", "has_benchmark",
+                "data_warnings"):
+        assert key in result
+    assert 0.0 <= result["robustness"]["score"] <= 100.0
+
+
+def test_display_frames():
+    from neuroquant.app_helpers import (
+        benchmark_frame, cost_breakdown, exposure_frame, gross_net_frame,
+        make_synthetic, rolling_risk_frame, run_research,
+    )
+    from neuroquant.backtest import BacktestConfig, run_backtest
+    frame = make_synthetic(n_days=500, seed=42)
+    result = run_research(frame, ResearchParams(cost_per_trade=0.005, mc_simulations=100))
+    sig = result["full_signals"]
+    assert list(gross_net_frame(sig).columns) == ["Gross", "Net"]
+    assert list(exposure_frame(sig).columns) == ["Exposure"]
+    assert "Rolling Sharpe" in rolling_risk_frame(sig).columns
+    assert not cost_breakdown(sig).empty
+    # No benchmark on synthetic data.
+    assert benchmark_frame(sig) is None
+    # Benchmark frame appears when a benchmark column is present.
+    fb = frame.copy(); fb["benchmark_close"] = frame["close"].to_numpy() * 0.5
+    sb = run_backtest(fb, BacktestConfig(20, 60))["signals"]
+    assert benchmark_frame(sb) is not None
+
+
+def test_load_sample_csv_has_benchmark():
+    from neuroquant.app_helpers import load_sample_csv
+    frame = load_sample_csv()
+    assert "benchmark_close" in frame.columns
+    assert len(frame) > 100

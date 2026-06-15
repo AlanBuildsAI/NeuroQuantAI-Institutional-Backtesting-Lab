@@ -49,3 +49,27 @@ def test_excess_return_is_strategy_minus_baseline(sample_data):
     assert kpis["excess_return"] == pytest.approx(
         kpis["total_return"] - kpis["baseline_return"]
     )
+
+
+def test_extended_kpis_adds_quant_metrics(sample_data):
+    from neuroquant.metrics import compute_extended_kpis
+
+    signals = generate_signals(sample_data, BacktestConfig(20, 60, cost_per_trade=0.005))
+    ext = compute_extended_kpis(signals)
+    for key in (
+        "cagr", "exposure_avg", "exposure_max", "best_day", "worst_day",
+        "win_rate", "gross_return", "cost_drag", "rolling_sharpe_median",
+        "benchmark_return", "benchmark_excess",
+    ):
+        assert key in ext
+    # With positive costs, gross return exceeds net and cost drag is positive.
+    assert ext["gross_return"] >= ext["total_return"] - 1e-9
+    assert ext["cost_drag"] >= -1e-9
+
+
+def test_extended_kpis_benchmark_nan_without_benchmark(sample_data):
+    from neuroquant.metrics import compute_extended_kpis
+
+    signals = generate_signals(sample_data, BacktestConfig(20, 60))
+    ext = compute_extended_kpis(signals)
+    assert ext["benchmark_return"] != ext["benchmark_return"]  # NaN

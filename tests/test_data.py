@@ -3,7 +3,11 @@
 import pandas as pd
 import pytest
 
-from neuroquant.data import generate_synthetic_series, load_csv_series
+from neuroquant.data import (
+    data_quality_report,
+    generate_synthetic_series,
+    load_csv_series,
+)
 
 
 def test_same_seed_is_reproducible():
@@ -72,3 +76,35 @@ def test_csv_loader_rejects_missing_timestamp_column(tmp_path):
     path = _write_csv(tmp_path, "close\n100\n101\n")
     with pytest.raises(ValueError, match="timestamp"):
         load_csv_series(path)
+
+
+def test_csv_loader_keeps_benchmark_close(tmp_path):
+    path = _write_csv(
+        tmp_path,
+        "date,close,benchmark_close\n"
+        "2021-01-01,100,50\n2021-01-02,101,51\n2021-01-03,102,52\n",
+    )
+    frame = load_csv_series(path)
+    assert "benchmark_close" in frame.columns
+
+
+def test_data_quality_report_flags_short_and_missing_benchmark():
+    frame = generate_synthetic_series(n_days=120, seed=1)
+    warnings = data_quality_report(frame)
+    text = " ".join(warnings).lower()
+    assert "short series" in text
+    assert "benchmark" in text
+
+
+def test_data_quality_report_flags_zero_returns():
+    frame = generate_synthetic_series(n_days=400, seed=1).copy()
+    # Force many repeated values -> a high share of exactly-zero returns.
+    frame.iloc[100:300, frame.columns.get_loc("close")] = 123.0
+    warnings = data_quality_report(frame)
+    assert any("zero" in w.lower() for w in warnings)
+
+
+def test_data_quality_report_clean_long_series_with_benchmark():
+    frame = generate_synthetic_series(n_days=600, seed=1).copy()
+    frame["benchmark_close"] = frame["close"].to_numpy() * 0.5
+    assert data_quality_report(frame) == []

@@ -219,3 +219,74 @@ def monte_carlo_bootstrap(
         "total_returns": total_returns,
         "max_drawdowns": max_drawdowns,
     }
+
+
+def overfit_gap(in_sample_kpis: dict, out_of_sample_kpis: dict) -> dict:
+    """Compare in-sample and out-of-sample Sharpe to flag possible overfitting.
+
+    Returns the two Sharpe ratios, their gap, and an ``overfit_flag`` that is
+    true when the in-sample result looks strong (Sharpe > 0.5) but the
+    out-of-sample result is weak (Sharpe < 0) — the classic overfit signature.
+    """
+    is_sharpe = float(in_sample_kpis["sharpe_ratio"])
+    oos_sharpe = float(out_of_sample_kpis["sharpe_ratio"])
+    return {
+        "in_sample_sharpe": is_sharpe,
+        "out_of_sample_sharpe": oos_sharpe,
+        "gap": is_sharpe - oos_sharpe,
+        "overfit_flag": bool(is_sharpe > 0.5 and oos_sharpe < 0.0),
+    }
+
+
+def _clip01(value: float) -> float:
+    return float(min(1.0, max(0.0, value)))
+
+
+def robustness_score(
+    out_of_sample_kpis: dict,
+    walk_forward: pd.DataFrame | None,
+    cost_sensitivity: pd.DataFrame | None,
+) -> dict:
+    """A transparent 0–100 robustness heuristic (not a forecast or rating).
+
+    Combines four components, each documented and bounded:
+
+    * **OOS Sharpe** (up to 40 pts): out-of-sample Sharpe scaled against 1.5,
+    * **Walk-forward stability** (up to 25 pts): share of folds with positive
+      out-of-sample Sharpe,
+    * **Drawdown** (up to 15 pts): shallower out-of-sample drawdown scores more,
+    * **Cost resilience** (up to 20 pts): does the result stay positive as costs
+      rise across the sensitivity ladder?
+
+    Returns the total ``score`` plus the component breakdown so the number is
+    never a black box.
+    """
+    oos_sharpe = float(out_of_sample_kpis["sharpe_ratio"])
+    sharpe_pts = _clip01(oos_sharpe / 1.5) * 40.0
+
+    if walk_forward is not None and not walk_forward.empty:
+        held = float((walk_forward["test_sharpe"] > 0).mean())
+    else:
+        held = 0.0
+    stability_pts = held * 25.0
+
+    drawdown = float(out_of_sample_kpis["max_drawdown"])
+    drawdown_pts = _clip01(1.0 + drawdown / 0.5) * 15.0  # 0% → 15, -50% → 0
+
+    cost_pts = 0.0
+    if cost_sensitivity is not None and not cost_sensitivity.empty:
+        cheapest = float(cost_sensitivity.iloc[0]["total_return"])
+        priciest = float(cost_sensitivity.iloc[-1]["total_return"])
+        if cheapest > 0 and priciest > 0:
+            cost_pts = 20.0
+        elif cheapest > 0:
+            cost_pts = 10.0
+
+    total = sharpe_pts + stability_pts + drawdown_pts + cost_pts
+    return {
+        "score": round(total, 1),
+        "oos_sharpe_points": round(sharpe_pts, 1),
+        "stability_points": round(stability_pts, 1),
+        "drawdown_points": round(drawdown_pts, 1),
+        "cost_points": round(cost_pts, 1),
+    }
