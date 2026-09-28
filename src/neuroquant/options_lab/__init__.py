@@ -20,6 +20,9 @@ from .execution import (
 from .models import BullCallSpread, OptionContract, OptionLeg, OptionQuote, OptionType, Side
 from .paper import ShadowTrade, append_shadow_trade, reconciliation_report
 from .pricing import Greeks, black_scholes_greeks, black_scholes_price, implied_volatility
+from .providers import OptionDataProvider, PaperBroker, ProviderCapabilities, RECOMMENDED_CAPABILITY_PROFILES
+from .research import bootstrap_trade_returns, chronological_trade_split, execution_stress_summary
+from .strategies import CheapVolBullishConfig, build_cheap_vol_bullish_entries
 from .selector import BullCallSelectionConfig, select_bull_call_spread
 from .volatility import (
     attach_realized_volatility,
@@ -59,4 +62,13 @@ __all__ = [
     "ShadowTrade",
     "append_shadow_trade",
     "reconciliation_report",
+    "OptionDataProvider",
+    "PaperBroker",
+    "ProviderCapabilities",
+    "RECOMMENDED_CAPABILITY_PROFILES",
+    "CheapVolBullishConfig",
+    "build_cheap_vol_bullish_entries",
+    "chronological_trade_split",
+    "bootstrap_trade_returns",
+    "execution_stress_summary",
 ]
