@@ -334,3 +334,27 @@ well-communicated process.
 Further reading: [`docs/methodology.md`](docs/methodology.md),
 [`docs/analytics_explanation.md`](docs/analytics_explanation.md),
 [`docs/portfolio_relevance.md`](docs/portfolio_relevance.md).
+
+
+---
+
+## Options Lab v1
+
+NeuroQuant now includes an offline-first options research layer in
+[`src/neuroquant/options_lab/`](src/neuroquant/options_lab/) for realistic
+defined-risk option experiments.
+
+The first production-style slice supports observed historical option-chain
+snapshots, canonical contract models, Black-Scholes-Merton sanity checks,
+Greeks and IV inversion, IV-versus-realized-volatility features, deterministic
+NBBO-aware execution, liquidity filters, bull-call-spread selection/backtests,
+and a shadow paper ledger that compares broker paper fills with realistic and
+conservative fills.
+
+The options engine **does not fabricate historical contracts or missing
+quotes**. Historical research requires an observed chain dataset. Midpoint
+fills are treated as an optimistic benchmark rather than ground truth.
+
+See [`docs/options_lab.md`](docs/options_lab.md) for the data contract,
+execution assumptions, example usage, research protocol, and current
+limitations.
