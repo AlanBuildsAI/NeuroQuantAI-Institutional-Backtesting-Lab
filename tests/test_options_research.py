@@ -25,7 +25,7 @@ def test_cheap_vol_signal_is_lagged_and_has_cooldown():
             fast_ma=5,
             slow_ma=10,
             rv_window=5,
-            max_iv_to_rv=10.0,
+            max_iv_to_rv=1_000_000.0,
             cooldown_days=10,
         ),
     )
